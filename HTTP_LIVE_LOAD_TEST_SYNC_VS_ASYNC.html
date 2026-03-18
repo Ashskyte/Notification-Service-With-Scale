@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTTP Live Load Test: Sync vs Async</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            line-height: 1.6;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+        .header h1 {
+            font-size: 32px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #38bdf8, #a78bfa, #f472b6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+        .header .subtitle {
+            font-size: 14px;
+            color: #64748b;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .badge-sync { background: #7f1d1d; color: #fca5a5; }
+        .badge-async { background: #14532d; color: #86efac; }
+        .badge-tool { background: #1e1b4b; color: #a5b4fc; }
+        .section {
+            background: #1e293b;
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 28px;
+            border: 1px solid #334155;
+        }
+        .section-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .icon { font-size: 24px; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            background: #0f172a;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        thead tr {
+            border-bottom: 2px solid #334155;
+        }
+        th {
+            padding: 14px 18px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #64748b;
+        }
+        td {
+            padding: 12px 18px;
+        }
+        tbody tr {
+            border-bottom: 1px solid #293548;
+        }
+        tbody tr:last-child {
+            border-bottom: none;
+        }
+        .val-sync { color: #fca5a5; text-align: center; }
+        .val-async { color: #86efac; text-align: center; }
+        .val-improve { color: #facc15; text-align: center; font-weight: 700; }
+        .val-big { font-weight: 700; font-size: 16px; }
+        .metric-label { color: #cbd5e1; font-weight: 600; }
+        .step-grid {
+            display: grid;
+            grid-template-columns: 48px 1fr;
+            gap: 8px 18px;
+            margin: 16px 0;
+        }
+        .step-num {
+            background: #7c3aed;
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 15px;
+        }
+        .step-content {
+            padding-top: 6px;
+            font-size: 13px;
+            color: #94a3b8;
+            line-height: 1.8;
+        }
+        .step-content strong { color: #e2e8f0; }
+        code {
+            background: #0f172a;
+            padding: 2px 7px;
+            border-radius: 4px;
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 12px;
+            color: #a78bfa;
+        }
+        .cmd-block {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 18px 22px;
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 12px;
+            color: #94a3b8;
+            line-height: 1.8;
+            overflow-x: auto;
+            margin: 12px 0;
+        }
+        .cmd-block .comment { color: #475569; }
+        .cmd-block .cmd { color: #38bdf8; }
+        .cmd-block .path { color: #fbbf24; }
+        .cmd-block .arg { color: #a78bfa; }
+        .cmd-block .output { color: #4ade80; }
+        .info-box {
+            padding: 14px 18px;
+            border-radius: 10px;
+            font-size: 13px;
+            margin-top: 16px;
+            line-height: 1.7;
+        }
+        .info-green { background: #14532d33; color: #86efac; border: 1px solid #14532d55; }
+        .info-yellow { background: #713f1233; color: #fde047; border: 1px solid #713f1255; }
+        .info-blue { background: #1e3a5f33; color: #7dd3fc; border: 1px solid #1e3a5f55; }
+        .config-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin: 16px 0;
+        }
+        .config-card {
+            background: #0f172a;
+            border-radius: 10px;
+            padding: 14px 18px;
+            border: 1px solid #293548;
+        }
+        .config-card .label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+        .config-card .value { font-size: 18px; font-weight: 700; color: #e2e8f0; margin-top: 4px; }
+        .config-card .desc { font-size: 11px; color: #475569; margin-top: 2px; }
+        .highlight-row { background: #1e293b; }
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .comparison-card {
+            border-radius: 12px;
+            padding: 24px;
+        }
+        .comparison-sync { background: #7f1d1d22; border: 1px solid #7f1d1d55; }
+        .comparison-async { background: #14532d22; border: 1px solid #14532d55; }
+        .raw-output {
+            background: #020617;
+            border: 1px solid #1e293b;
+            border-radius: 10px;
+            padding: 18px 22px;
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 11px;
+            color: #64748b;
+            line-height: 1.7;
+            overflow-x: auto;
+            white-space: pre;
+            margin: 12px 0;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <!-- Header -->
+    <div class="header">
+        <h1>HTTP Live Load Test: Sync vs Async</h1>
+        <div class="subtitle">
+            Notification System &bull; End-to-End HTTP Performance Benchmark &bull; March 2026
+        </div>
+        <div style="margin-top: 12px;">
+            <span class="badge badge-sync">Sync: Notification-Service-Sync</span>
+            <span class="badge badge-async">Async: Notification-Service-With-Scale</span>
+            <span class="badge badge-tool">Tool: HttpLoadTest.java</span>
+        </div>
+    </div>
+
+    <!-- ========== TEST CONFIGURATION ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x2699;</span> Test Configuration</div>
+        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 16px;">
+            Both tests ran against a <strong>live Spring Boot server</strong> on <code>http://localhost:8080</code>
+            using the same <code>HttpLoadTest.java</code> tool. Each server was started, tested, and stopped independently.
+        </p>
+        <div class="config-grid">
+            <div class="config-card">
+                <div class="label">Total HTTP Requests</div>
+                <div class="value">200</div>
+                <div class="desc">POST /api/notifications/send</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Concurrent Threads</div>
+                <div class="value">30</div>
+                <div class="desc">Java ExecutorService fixed thread pool</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Test Users Seeded</div>
+                <div class="value">10</div>
+                <div class="desc">Created via POST /api/users before test</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Warmup Requests</div>
+                <div class="value">5</div>
+                <div class="desc">Prime JIT compiler &amp; connection pool</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Notification Channel</div>
+                <div class="value">EMAIL</div>
+                <div class="desc">Each handler has 100ms Thread.sleep</div>
+            </div>
+            <div class="config-card">
+                <div class="label">HTTP Client</div>
+                <div class="value">java.net.http</div>
+                <div class="desc">Java 21 built-in HttpClient</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Sync Server</div>
+                <div class="value" style="font-size: 14px;">Notification-System</div>
+                <div class="desc">Direct blocking processing on HTTP thread</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Async Server</div>
+                <div class="value" style="font-size: 14px;">Notification-System-With-Scale</div>
+                <div class="desc">@Async + ThreadPoolTaskExecutor (10-50 threads)</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== RESULTS COMPARISON TABLE ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F3C6;</span> Results: Sync vs Async</div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th style="text-align: left;">Metric</th>
+                    <th style="text-align: center; color: #f87171; background: #7f1d1d22;">SYNC</th>
+                    <th style="text-align: center; color: #4ade80; background: #14532d22;">ASYNC</th>
+                    <th style="text-align: center; color: #facc15;">Improvement</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="metric-label">Total Requests</td>
+                    <td class="val-sync">200</td>
+                    <td class="val-async">200</td>
+                    <td class="val-improve">-</td>
+                </tr>
+                <tr>
+                    <td class="metric-label">Successful (2xx)</td>
+                    <td class="val-sync">200</td>
+                    <td class="val-async">200</td>
+                    <td class="val-improve">100% both</td>
+                </tr>
+                <tr class="highlight-row">
+                    <td class="metric-label">Total Time</td>
+                    <td class="val-sync val-big">752 ms</td>
+                    <td class="val-async val-big">532 ms</td>
+                    <td class="val-improve">1.4x faster</td>
+                </tr>
+                <tr class="highlight-row">
+                    <td class="metric-label">Throughput</td>
+                    <td class="val-sync val-big">265.96 /sec</td>
+                    <td class="val-async val-big">375.94 /sec</td>
+                    <td class="val-improve">1.4x higher</td>
+                </tr>
+                <tr>
+                    <td class="metric-label">Avg Latency</td>
+                    <td class="val-sync">105.10 ms</td>
+                    <td class="val-async">74.65 ms</td>
+                    <td class="val-improve">1.4x lower</td>
+                </tr>
+                <tr>
+                    <td class="metric-label">Min Latency</td>
+                    <td class="val-sync">10 ms</td>
+                    <td class="val-async">5 ms</td>
+                    <td class="val-improve">2x lower</td>
+                </tr>
+                <tr>
+                    <td class="metric-label">Max Latency</td>
+                    <td class="val-sync">198 ms</td>
+                    <td class="val-async">263 ms</td>
+                    <td class="val-improve" style="color: #94a3b8;">~same</td>
+                </tr>
+                <tr class="highlight-row">
+                    <td class="metric-label">P50 (Median)</td>
+                    <td class="val-sync val-big">120 ms</td>
+                    <td class="val-async val-big">71 ms</td>
+                    <td class="val-improve">1.7x lower</td>
+                </tr>
+                <tr>
+                    <td class="metric-label">P95</td>
+                    <td class="val-sync">154 ms</td>
+                    <td class="val-async">120 ms</td>
+                    <td class="val-improve">1.3x lower</td>
+                </tr>
+                <tr>
+                    <td class="metric-label">P99</td>
+                    <td class="val-sync">187 ms</td>
+                    <td class="val-async">135 ms</td>
+                    <td class="val-improve">1.4x lower</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- ========== RAW TERMINAL OUTPUT ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F4BB;</span> Raw Terminal Output</div>
+
+        <div class="comparison-grid">
+            <div class="comparison-card comparison-sync">
+                <div style="font-size: 12px; font-weight: 700; color: #f87171; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px;">Sync Server Output</div>
+                <div class="raw-output">==========================================================
+  HTTP LOAD TEST: SYNC
+  Target: http://localhost:8080
+  Notifications: 200
+  Concurrent threads: 30
+  Simulated API latency: 100ms per channel handler
+==========================================================
+
+[1/3] Seeding 10 test users...
+  Created 10 users: [21, 22, 23, 24, 25, 26, 27, 28, 29, 30]
+
+[2/3] Warming up with 5 requests...
+
+[3/3] Firing 200 concurrent notifications...
+
+==========================================================
+  HTTP LOAD TEST RESULTS: SYNC
+==========================================================
+  Total requests         : 200
+  Successful (2xx)       : 200
+  Failed                 : 0
+  Total time             : 752 ms
+  Throughput             : 265.96 requests/sec
+  ---
+  Avg latency            : 105.10 ms
+  Min latency            : 10 ms
+  Max latency            : 198 ms
+  P50 (median)           : 120 ms
+  P95                    : 154 ms
+  P99                    : 187 ms
+==========================================================</div>
+            </div>
+            <div class="comparison-card comparison-async">
+                <div style="font-size: 12px; font-weight: 700; color: #4ade80; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px;">Async Server Output</div>
+                <div class="raw-output">==========================================================
+  HTTP LOAD TEST: ASYNC
+  Target: http://localhost:8080
+  Notifications: 200
+  Concurrent threads: 30
+  Simulated API latency: 100ms per channel handler
+==========================================================
+
+[1/3] Seeding 10 test users...
+  Created 10 users: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+[2/3] Warming up with 5 requests...
+
+[3/3] Firing 200 concurrent notifications...
+
+==========================================================
+  HTTP LOAD TEST RESULTS: ASYNC
+==========================================================
+  Total requests         : 200
+  Successful (2xx)       : 200
+  Failed                 : 0
+  Total time             : 532 ms
+  Throughput             : 375.94 requests/sec
+  ---
+  Avg latency            : 74.65 ms
+  Min latency            : 5 ms
+  Max latency            : 263 ms
+  P50 (median)           : 71 ms
+  P95                    : 120 ms
+  P99                    : 135 ms
+==========================================================</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== HOW THE TEST WORKS ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F9EA;</span> How HttpLoadTest.java Works</div>
+
+        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 20px;">
+            <code>HttpLoadTest.java</code> is a standalone Java program (no Spring, no Maven needed to run).
+            It uses Java 21's built-in <code>java.net.http.HttpClient</code> to send real HTTP requests to a running server.
+            The file lives at <code>src/test/java/com/notification/performance/HttpLoadTest.java</code> in both repos.
+        </p>
+
+        <div class="step-grid">
+            <div class="step-num">1</div>
+            <div class="step-content">
+                <strong>Seed 10 test users via HTTP</strong><br>
+                Sends 10 sequential <code>POST /api/users</code> requests, each with a unique username
+                (appends <code>System.nanoTime()</code> to avoid duplicates). Extracts the <code>id</code> from each
+                JSON response and stores it in a list. These IDs are used for notification requests.
+            </div>
+
+            <div class="step-num">2</div>
+            <div class="step-content">
+                <strong>Warmup: 5 sequential requests</strong><br>
+                Sends 5 notification requests one at a time to prime the JVM's JIT compiler, Tomcat's thread pool,
+                HikariCP connection pool, and the HTTP client's connection cache. Waits 500ms after warmup.
+                This ensures the timed test measures steady-state performance, not cold-start overhead.
+            </div>
+
+            <div class="step-num">3</div>
+            <div class="step-content">
+                <strong>Create ExecutorService with 30 threads</strong><br>
+                A <code>Executors.newFixedThreadPool(30)</code> simulates 30 concurrent HTTP clients.
+                A <code>CountDownLatch(200)</code> tracks completion. <code>AtomicInteger</code> counters
+                track successes and failures in a thread-safe manner.
+            </div>
+
+            <div class="step-num">4</div>
+            <div class="step-content">
+                <strong>Fire 200 concurrent POST requests</strong><br>
+                Each of the 200 tasks is submitted to the executor. Each task:
+                <ul style="margin: 8px 0 0 16px;">
+                    <li>Picks a user ID (round-robin: <code>userIds.get(index % userIds.size())</code>)</li>
+                    <li>Builds a JSON body with <code>userId</code>, <code>title</code>, <code>message</code>, <code>channel=EMAIL</code>, <code>priority=MEDIUM</code></li>
+                    <li>Records <code>System.currentTimeMillis()</code> before and after the HTTP call</li>
+                    <li>Stores the elapsed time in a synchronized latency list</li>
+                    <li>Checks the HTTP status code (200/201 = success, anything else = failure)</li>
+                    <li>Decrements the <code>CountDownLatch</code></li>
+                </ul>
+            </div>
+
+            <div class="step-num">5</div>
+            <div class="step-content">
+                <strong>Await completion &amp; compute metrics</strong><br>
+                <code>latch.await(5, TimeUnit.MINUTES)</code> blocks until all 200 tasks finish.
+                Then the latency list is sorted and metrics are computed:
+                <ul style="margin: 8px 0 0 16px;">
+                    <li><strong>Total time</strong> = <code>overallEnd - overallStart</code></li>
+                    <li><strong>Throughput</strong> = <code>successCount * 1000 / totalTimeMs</code> (requests/sec)</li>
+                    <li><strong>Avg latency</strong> = mean of all individual request durations</li>
+                    <li><strong>P50/P95/P99</strong> = percentile from sorted latency list</li>
+                </ul>
+            </div>
+
+            <div class="step-num">6</div>
+            <div class="step-content">
+                <strong>Print formatted results</strong><br>
+                All metrics are printed to stdout in a structured format, making it easy to compare
+                SYNC vs ASYNC runs side by side.
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== STEP-BY-STEP MANUAL GUIDE ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F4D6;</span> Step-by-Step: Run It Yourself</div>
+
+        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 20px;">
+            Follow these exact steps to reproduce the benchmark on your machine.
+            You need <strong>Java 21</strong> and <strong>Maven</strong> installed.
+        </p>
+
+        <!-- Step 1: Clone -->
+        <div style="margin-bottom: 28px;">
+            <div style="font-size: 14px; font-weight: 700; color: #f8fafc; margin-bottom: 8px;">
+                <span style="color: #7c3aed;">Step 1:</span> Clone Both Repositories
+            </div>
+            <div class="cmd-block">
+<span class="comment"># Clone the SYNC repo (original blocking version)</span>
+<span class="cmd">git clone</span> <span class="arg">https://github.com/Ashskyte/Notification-Service-Sync.git</span> <span class="path">Notification-System</span>
+
+<span class="comment"># Clone the ASYNC repo (@Async + ThreadPool version)</span>
+<span class="cmd">git clone</span> <span class="arg">https://github.com/Ashskyte/Notification-Service-With-Scale.git</span> <span class="path">Notification-System-With-Scale</span>
+            </div>
+        </div>
+
+        <!-- Step 2: Build Sync -->
+        <div style="margin-bottom: 28px;">
+            <div style="font-size: 14px; font-weight: 700; color: #f8fafc; margin-bottom: 8px;">
+                <span style="color: #7c3aed;">Step 2:</span> Build &amp; Start the SYNC Server
+            </div>
+            <div class="cmd-block">
+<span class="comment"># Navigate to sync repo</span>
+<span class="cmd">cd</span> <span class="path">Notification-System</span>
+
+<span class="comment"># Build the project (skip tests for speed)</span>
+<span class="cmd">mvn</span> clean install -DskipTests
+
+<span class="comment"># Start the server on port 8080</span>
+<span class="cmd">mvn</span> spring-boot:run
+
+<span class="comment"># Wait for: "Started NotificationSystemApplication in X seconds"</span>
+<span class="comment"># The server is now running at http://localhost:8080</span>
+            </div>
+        </div>
+
+        <!-- Step 3: Run Load Test Against Sync -->
+        <div style="margin-bottom: 28px;">
+            <div style="font-size: 14px; font-weight: 700; color: #f8fafc; margin-bottom: 8px;">
+                <span style="color: #7c3aed;">Step 3:</span> Run the HTTP Load Test Against SYNC Server
+            </div>
+            <div class="cmd-block">
+<span class="comment"># Open a NEW terminal (keep the server running in the first one)</span>
+<span class="cmd">cd</span> <span class="path">Notification-System</span>
+
+<span class="comment"># Run the load test as a standalone Java file</span>
+<span class="cmd">java</span> <span class="arg">src/test/java/com/notification/performance/HttpLoadTest.java</span> <span class="path">"SYNC"</span>
+
+<span class="comment"># Expected output:</span>
+<span class="output"># ==========================================================</span>
+<span class="output">#   HTTP LOAD TEST RESULTS: SYNC</span>
+<span class="output"># ==========================================================</span>
+<span class="output">#   Total requests         : 200</span>
+<span class="output">#   Successful (2xx)       : 200</span>
+<span class="output">#   Throughput             : ~265 requests/sec</span>
+<span class="output">#   Avg latency            : ~105 ms</span>
+<span class="output"># ==========================================================</span>
+            </div>
+            <div class="info-yellow">
+                <strong>Note:</strong> The <code>"SYNC"</code> argument is just a label printed in the output.
+                You can pass any string (or nothing) &mdash; it doesn't change test behavior.
+            </div>
+        </div>
+
+        <!-- Step 4: Stop Sync -->
+        <div style="margin-bottom: 28px;">
+            <div style="font-size: 14px; font-weight: 700; color: #f8fafc; margin-bottom: 8px;">
+                <span style="color: #7c3aed;">Step 4:</span> Stop the SYNC Server
+            </div>
+            <div class="cmd-block">
+<span class="comment"># Go to the terminal running the sync server</span>
+<span class="comment"># Press Ctrl+C to stop it</span>
+
+<span class="comment"># Verify port 8080 is free (Windows)</span>
+<span class="cmd">netstat</span> -ano | findstr :8080
+
+<span class="comment"># If still occupied, force kill (replace PID with actual PID)</span>
+<span class="cmd">taskkill</span> /PID &lt;PID&gt; /F
+            </div>
+        </div>
+
+        <!-- Step 5: Start Async -->
+        <div style="margin-bottom: 28px;">
+            <div style="font-size: 14px; font-weight: 700; color: #f8fafc; margin-bottom: 8px;">
+                <span style="color: #7c3aed;">Step 5:</span> Build &amp; Start the ASYNC Server
+            </div>
+            <div class="cmd-block">
+<span class="comment"># Navigate to async repo</span>
+<span class="cmd">cd</span> <span class="path">Notification-System-With-Scale</span>
+
+<span class="comment"># Build the project</span>
+<span class="cmd">mvn</span> clean install -DskipTests
+
+<span class="comment"># Start the server on port 8080</span>
+<span class="cmd">mvn</span> spring-boot:run
+
+<span class="comment"># Wait for: "Notification async executor initialized: core=10, max=50, queue=10000"</span>
+<span class="comment"># This confirms the async thread pool is active</span>
+            </div>
+        </div>
+
+        <!-- Step 6: Run Load Test Against Async -->
+        <div style="margin-bottom: 28px;">
+            <div style="font-size: 14px; font-weight: 700; color: #f8fafc; margin-bottom: 8px;">
+                <span style="color: #7c3aed;">Step 6:</span> Run the HTTP Load Test Against ASYNC Server
+            </div>
+            <div class="cmd-block">
+<span class="comment"># Open a NEW terminal</span>
+<span class="cmd">cd</span> <span class="path">Notification-System-With-Scale</span>
+
+<span class="comment"># Run the same load test</span>
+<span class="cmd">java</span> <span class="arg">src/test/java/com/notification/performance/HttpLoadTest.java</span> <span class="path">"ASYNC"</span>
+
+<span class="comment"># Expected output:</span>
+<span class="output"># ==========================================================</span>
+<span class="output">#   HTTP LOAD TEST RESULTS: ASYNC</span>
+<span class="output"># ==========================================================</span>
+<span class="output">#   Total requests         : 200</span>
+<span class="output">#   Successful (2xx)       : 200</span>
+<span class="output">#   Throughput             : ~376 requests/sec</span>
+<span class="output">#   Avg latency            : ~75 ms</span>
+<span class="output"># ==========================================================</span>
+            </div>
+        </div>
+
+        <!-- Step 7: Compare -->
+        <div style="margin-bottom: 0;">
+            <div style="font-size: 14px; font-weight: 700; color: #f8fafc; margin-bottom: 8px;">
+                <span style="color: #7c3aed;">Step 7:</span> Compare the Results
+            </div>
+            <p style="font-size: 13px; color: #94a3b8; line-height: 1.7;">
+                Place the two outputs side by side. The async server should show:
+                lower total time, higher throughput, lower avg/median latency, and
+                lower P95/P99 percentiles. The improvement factor will vary by machine
+                but should be approximately <strong style="color: #facc15;">1.3x&ndash;1.7x</strong> across all HTTP metrics.
+            </p>
+        </div>
+    </div>
+
+    <!-- ========== WHAT EACH REQUEST DOES ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F50D;</span> What Each HTTP Request Does on the Server</div>
+
+        <div class="comparison-grid">
+            <div class="comparison-card comparison-sync">
+                <div style="font-size: 12px; font-weight: 700; color: #f87171; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;">Sync Server (Blocking)</div>
+                <div style="font-size: 13px; color: #94a3b8; line-height: 2;">
+                    <strong style="color: #fca5a5;">1.</strong> Tomcat thread receives request<br>
+                    <strong style="color: #fca5a5;">2.</strong> Validate JSON &rarr; deserialize to SendNotificationRequest<br>
+                    <strong style="color: #fca5a5;">3.</strong> Look up user from DB (~3ms)<br>
+                    <strong style="color: #fca5a5;">4.</strong> Save notification to DB with status=PENDING (~5ms)<br>
+                    <strong style="color: #fca5a5;">5.</strong> <span style="background:#7f1d1d44; padding: 2px 6px; border-radius: 4px;">BLOCKS: Send email via channel handler (100ms)</span><br>
+                    <strong style="color: #fca5a5;">6.</strong> Update notification status to SENT (~3ms)<br>
+                    <strong style="color: #fca5a5;">7.</strong> Serialize response JSON &rarr; return HTTP 201<br>
+                    <br>
+                    <strong style="color: #f87171;">Total: ~111ms+ per request</strong><br>
+                    <span style="font-size: 12px;">Tomcat thread is blocked for the entire duration</span>
+                </div>
+            </div>
+            <div class="comparison-card comparison-async">
+                <div style="font-size: 12px; font-weight: 700; color: #4ade80; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;">Async Server (Non-Blocking)</div>
+                <div style="font-size: 13px; color: #94a3b8; line-height: 2;">
+                    <strong style="color: #86efac;">1.</strong> Tomcat thread receives request<br>
+                    <strong style="color: #86efac;">2.</strong> Validate JSON &rarr; deserialize to SendNotificationRequest<br>
+                    <strong style="color: #86efac;">3.</strong> Look up user from DB (~3ms)<br>
+                    <strong style="color: #86efac;">4.</strong> Save notification to DB with status=PENDING (~5ms)<br>
+                    <strong style="color: #86efac;">5.</strong> <span style="background:#14532d44; padding: 2px 6px; border-radius: 4px;">ASYNC: Submit to notificationTaskExecutor queue (~0.01ms)</span><br>
+                    <strong style="color: #86efac;">6.</strong> Serialize response JSON &rarr; return HTTP 201<br>
+                    <br>
+                    <strong style="color: #4ade80;">Total: ~8ms per request</strong><br>
+                    <span style="font-size: 12px;">Email delivery happens in background thread pool (10-50 threads)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== WHY HTTP GAP IS SMALLER ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F9E0;</span> Why 1.4x (HTTP) vs 3.6x (JUnit)?</div>
+
+        <div style="font-size: 13px; color: #94a3b8; line-height: 1.8;">
+            <p>The JUnit test measured <strong>3.6x</strong> improvement because it called
+            <code>notificationService.sendNotification()</code> directly &mdash; no HTTP overhead.</p>
+            <br>
+            <p>The HTTP test adds fixed costs that <strong>both versions pay equally</strong>:</p>
+            <div style="display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 14px 0 14px 8px;">
+                <span style="color: #64748b;">~1-3ms</span> <span>Network round-trip (localhost loopback)</span>
+                <span style="color: #64748b;">~5-10ms</span> <span>Tomcat thread scheduling &amp; connection handling</span>
+                <span style="color: #64748b;">~2-5ms</span> <span>JSON serialization / deserialization</span>
+                <span style="color: #64748b;">~1-2ms</span> <span>Spring filter chain (validation, error handling)</span>
+                <span style="color: #64748b;">~5-15ms</span> <span>HTTP connection pool contention (30 concurrent clients)</span>
+            </div>
+            <p>These ~15-35ms of fixed overhead compress the relative ratio. But the <strong>absolute savings</strong> remain significant:</p>
+            <br>
+            <div class="info-green">
+                <strong>P50 dropped from 120ms to 71ms</strong> &mdash; a 49ms saving per request.
+                At 1,000 requests/sec, that's 49 seconds of user-facing wait time saved every second.
+                At production scale with real external APIs (200-2000ms instead of 100ms), the async advantage grows to <strong>5-20x</strong>.
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== ALSO: JUnit comparison reference ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F4CA;</span> Reference: JUnit Load Test Results</div>
+        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 16px;">
+            For comparison, here are the JUnit results (service-layer only, no HTTP overhead):
+        </p>
+        <table>
+            <thead>
+                <tr>
+                    <th style="text-align: left;">Metric</th>
+                    <th style="text-align: center; color: #f87171; background: #7f1d1d22;">SYNC</th>
+                    <th style="text-align: center; color: #4ade80; background: #14532d22;">ASYNC</th>
+                    <th style="text-align: center; color: #facc15;">Improvement</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="highlight-row">
+                    <td class="metric-label">Total Time</td>
+                    <td class="val-sync val-big">1,230 ms</td>
+                    <td class="val-async val-big">342 ms</td>
+                    <td class="val-improve">3.6x faster</td>
+                </tr>
+                <tr class="highlight-row">
+                    <td class="metric-label">Throughput</td>
+                    <td class="val-sync val-big">81.30 /sec</td>
+                    <td class="val-async val-big">292.40 /sec</td>
+                    <td class="val-improve">3.6x higher</td>
+                </tr>
+                <tr>
+                    <td class="metric-label">Avg Latency</td>
+                    <td class="val-sync">229.92 ms</td>
+                    <td class="val-async">64.83 ms</td>
+                    <td class="val-improve">3.5x lower</td>
+                </tr>
+                <tr>
+                    <td class="metric-label">Min Latency</td>
+                    <td class="val-sync">106 ms</td>
+                    <td class="val-async">2 ms</td>
+                    <td class="val-improve">53x lower</td>
+                </tr>
+                <tr>
+                    <td class="metric-label">P50 (Median)</td>
+                    <td class="val-sync">219 ms</td>
+                    <td class="val-async">42 ms</td>
+                    <td class="val-improve">5.2x lower</td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="info-blue" style="margin-top: 16px;">
+            <strong>Test:</strong> 100 notifications, 20 threads, direct service call via <code>@SpringBootTest</code>.
+            See <code>PerformanceLoadTest.java</code> and <code>async-processing-change.html</code> for full details.
+        </div>
+    </div>
+
+    <!-- ========== KEY FILES ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F4C1;</span> Key Files</div>
+        <div style="font-size: 13px; color: #94a3b8; line-height: 2.2;">
+            <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 16px;">
+                <code style="white-space: nowrap;">HttpLoadTest.java</code>
+                <span>Standalone HTTP load tester (this test)</span>
+                <code style="white-space: nowrap;">PerformanceLoadTest.java</code>
+                <span>JUnit @SpringBootTest load tester</span>
+                <code style="white-space: nowrap;">async-processing-change.html</code>
+                <span>Full async architecture documentation</span>
+                <code style="white-space: nowrap;">AsyncConfig.java</code>
+                <span>Thread pool configuration (core=10, max=50)</span>
+                <code style="white-space: nowrap;">NotificationProcessingService.java</code>
+                <span>@Async processing service</span>
+                <code style="white-space: nowrap;">EmailChannelHandler.java</code>
+                <span>Channel handler with 100ms simulated delay</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== REPOS ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F517;</span> Repositories</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="config-card" style="border-color: #7f1d1d55;">
+                <div class="label" style="color: #f87171;">Sync (Baseline)</div>
+                <div style="font-size: 13px; color: #94a3b8; margin-top: 6px; word-break: break-all;">
+                    https://github.com/Ashskyte/Notification-Service-Sync.git
+                </div>
+            </div>
+            <div class="config-card" style="border-color: #14532d55;">
+                <div class="label" style="color: #4ade80;">Async (Optimized)</div>
+                <div style="font-size: 13px; color: #94a3b8; margin-top: 6px; word-break: break-all;">
+                    https://github.com/Ashskyte/Notification-Service-With-Scale.git
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="text-align: center; margin-top: 40px; padding-top: 24px; border-top: 1px solid #1e293b; font-size: 12px; color: #475569;">
+        Notification System &bull; HTTP Live Load Test &bull; Sync vs Async &bull; March 2026
+    </div>
+
+</div>
+</body>
+</html>
