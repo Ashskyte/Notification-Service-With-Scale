@@ -36,5 +36,7 @@ public class SmsChannelHandler implements NotificationChannelHandler {
         if (notification.getUser().getPhoneNumber() == null || notification.getUser().getPhoneNumber().isBlank()) {
             throw new RuntimeException("User does not have a valid phone number");
         }
+        // Simulate external API latency (e.g., Twilio/SNS network call)
+        try { Thread.sleep(100); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
     }
 }

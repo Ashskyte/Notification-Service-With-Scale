@@ -37,5 +37,7 @@ public class EmailChannelHandler implements NotificationChannelHandler {
         if (notification.getUser().getEmail() == null || notification.getUser().getEmail().isBlank()) {
             throw new RuntimeException("User does not have a valid email address");
         }
+        // Simulate external API latency (e.g., SendGrid/SES network call)
+        try { Thread.sleep(100); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
     }
 }

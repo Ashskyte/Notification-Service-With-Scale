@@ -37,5 +37,7 @@ public class PushNotificationChannelHandler implements NotificationChannelHandle
         if (notification.getUser().getDeviceToken() == null || notification.getUser().getDeviceToken().isBlank()) {
             throw new RuntimeException("User does not have a valid device token");
         }
+        // Simulate external API latency (e.g., FCM/APNs network call)
+        try { Thread.sleep(100); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
     }
 }

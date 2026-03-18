@@ -652,6 +652,244 @@
         </div>
     </div>
 
+    <!-- ========== PERFORMANCE BENCHMARK RESULTS ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F3C6;</span> Performance Benchmark: Sync vs Async</div>
+
+        <!-- Test Setup -->
+        <div class="config-box" style="margin-bottom: 24px;">
+            <h4>Test Setup</h4>
+            <p style="font-size: 13px; color: #94a3b8; line-height: 1.7; margin-bottom: 12px;">
+                We ran identical <strong>JUnit @SpringBootTest</strong> load tests against both codebases to measure real performance under concurrent load.
+                The test boots the full Spring application context (including H2 database, JPA, channel handlers) and fires concurrent
+                <code>sendNotification()</code> calls through the service layer &mdash; measuring how long each call takes from the caller's perspective.
+            </p>
+            <div class="config-item">
+                <div>
+                    <span class="config-key">Total notifications</span>
+                    <span class="config-desc">Number of sendNotification() calls</span>
+                </div>
+                <span class="config-val">100</span>
+            </div>
+            <div class="config-item">
+                <div>
+                    <span class="config-key">Concurrent threads</span>
+                    <span class="config-desc">ExecutorService thread pool firing requests in parallel</span>
+                </div>
+                <span class="config-val">20</span>
+            </div>
+            <div class="config-item">
+                <div>
+                    <span class="config-key">Test users</span>
+                    <span class="config-desc">Seeded via UserService.registerUser() in @BeforeEach</span>
+                </div>
+                <span class="config-val">10</span>
+            </div>
+            <div class="config-item">
+                <div>
+                    <span class="config-key">Channel</span>
+                    <span class="config-desc">All notifications sent via EMAIL channel</span>
+                </div>
+                <span class="config-val">EMAIL</span>
+            </div>
+            <div class="config-item">
+                <div>
+                    <span class="config-key">Simulated API latency</span>
+                    <span class="config-desc">Thread.sleep(100) in each channel handler to simulate real external API call</span>
+                </div>
+                <span class="config-val">100ms</span>
+            </div>
+            <div class="config-item">
+                <div>
+                    <span class="config-key">Sync repo</span>
+                    <span class="config-desc">Notification-System (original, blocking)</span>
+                </div>
+                <span class="config-val" style="color: #f87171;">Synchronous</span>
+            </div>
+            <div class="config-item">
+                <div>
+                    <span class="config-key">Async repo</span>
+                    <span class="config-desc">Notification-System-With-Scale (@Async + ThreadPool)</span>
+                </div>
+                <span class="config-val" style="color: #4ade80;">Asynchronous</span>
+            </div>
+        </div>
+
+        <!-- Results Table -->
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px; background: #1e293b; border-radius: 12px; overflow: hidden;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #334155;">
+                        <th style="text-align: left; padding: 14px 18px; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #64748b;">Metric</th>
+                        <th style="text-align: center; padding: 14px 18px; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #f87171; background: #7f1d1d22;">SYNC</th>
+                        <th style="text-align: center; padding: 14px 18px; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #4ade80; background: #14532d22;">ASYNC</th>
+                        <th style="text-align: center; padding: 14px 18px; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #facc15;">Improvement</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="border-bottom: 1px solid #293548;">
+                        <td style="padding: 12px 18px; color: #cbd5e1; font-weight: 600;">Total Time</td>
+                        <td style="padding: 12px 18px; text-align: center; color: #fca5a5; font-weight: 700; font-size: 16px;">1,230 ms</td>
+                        <td style="padding: 12px 18px; text-align: center; color: #86efac; font-weight: 700; font-size: 16px;">342 ms</td>
+                        <td style="padding: 12px 18px; text-align: center; color: #facc15; font-weight: 700;">3.6x faster</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #293548;">
+                        <td style="padding: 12px 18px; color: #cbd5e1; font-weight: 600;">Throughput</td>
+                        <td style="padding: 12px 18px; text-align: center; color: #fca5a5; font-weight: 700; font-size: 16px;">81.30 /sec</td>
+                        <td style="padding: 12px 18px; text-align: center; color: #86efac; font-weight: 700; font-size: 16px;">292.40 /sec</td>
+                        <td style="padding: 12px 18px; text-align: center; color: #facc15; font-weight: 700;">3.6x higher</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #293548;">
+                        <td style="padding: 12px 18px; color: #cbd5e1; font-weight: 600;">Avg Latency</td>
+                        <td style="padding: 12px 18px; text-align: center; color: #fca5a5;">229.92 ms</td>
+                        <td style="padding: 12px 18px; text-align: center; color: #86efac;">64.83 ms</td>
+                        <td style="padding: 12px 18px; text-align: center; color: #facc15; font-weight: 700;">3.5x lower</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #293548;">
+                        <td style="padding: 12px 18px; color: #cbd5e1; font-weight: 600;">Min Latency</td>
+                        <td style="padding: 12px 18px; text-align: center; color: #fca5a5;">106 ms</td>
+                        <td style="padding: 12px 18px; text-align: center; color: #86efac;">2 ms</td>
+                        <td style="padding: 12px 18px; text-align: center; color: #facc15; font-weight: 700;">53x lower</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #293548;">
+                        <td style="padding: 12px 18px; color: #cbd5e1; font-weight: 600;">P50 (Median)</td>
+                        <td style="padding: 12px 18px; text-align: center; color: #fca5a5;">219 ms</td>
+                        <td style="padding: 12px 18px; text-align: center; color: #86efac;">42 ms</td>
+                        <td style="padding: 12px 18px; text-align: center; color: #facc15; font-weight: 700;">5.2x lower</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #293548;">
+                        <td style="padding: 12px 18px; color: #cbd5e1; font-weight: 600;">P95</td>
+                        <td style="padding: 12px 18px; text-align: center; color: #fca5a5;">422 ms</td>
+                        <td style="padding: 12px 18px; text-align: center; color: #86efac;">161 ms</td>
+                        <td style="padding: 12px 18px; text-align: center; color: #facc15; font-weight: 700;">2.6x lower</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px 18px; color: #cbd5e1; font-weight: 600;">P99</td>
+                        <td style="padding: 12px 18px; text-align: center; color: #fca5a5;">430 ms</td>
+                        <td style="padding: 12px 18px; text-align: center; color: #86efac;">166 ms</td>
+                        <td style="padding: 12px 18px; text-align: center; color: #facc15; font-weight: 700;">2.6x lower</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ========== WHY IS ASYNC SO MUCH FASTER ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F9E0;</span> Why Is Async So Much Faster?</div>
+
+        <div style="background: #1e293b; border-radius: 14px; padding: 28px; border: 1px solid #334155; margin-bottom: 24px;">
+            <h4 style="font-size: 15px; color: #f8fafc; margin-bottom: 16px;">The Core Difference: What the Caller Waits For</h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; font-size: 13px; line-height: 1.8;">
+                <div>
+                    <div style="color: #f87171; font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Sync: Caller waits for EVERYTHING</div>
+                    <div style="color: #94a3b8;">
+                        When <code>sendNotification()</code> is called in the sync version, the calling thread must wait for the <strong>entire pipeline</strong> to complete:<br><br>
+                        <span style="color: #fca5a5;">DB save (~5ms)</span> +
+                        <span style="color: #fca5a5;">Status update to PROCESSING (~3ms)</span> +
+                        <span style="color: #fca5a5; font-weight: 700;">External API call (100ms)</span> +
+                        <span style="color: #fca5a5;">Status update to SENT (~3ms)</span><br><br>
+                        = <strong style="color: #f87171;">~111ms minimum per call</strong><br><br>
+                        With 20 threads fighting for the H2 database lock, contention adds another 100-300ms, explaining the 219ms median and 430ms max.
+                    </div>
+                </div>
+                <div>
+                    <div style="color: #4ade80; font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Async: Caller waits for DB SAVE only</div>
+                    <div style="color: #94a3b8;">
+                        When <code>sendNotification()</code> is called in the async version, the calling thread only waits for:<br><br>
+                        <span style="color: #86efac;">DB save (~5ms)</span> +
+                        <span style="color: #86efac;">Submit to thread pool queue (~0.01ms)</span><br><br>
+                        = <strong style="color: #4ade80;">~5ms minimum per call</strong><br><br>
+                        The 100ms external API call happens <strong>in a background thread</strong> from the <code>notificationTaskExecutor</code> pool. The caller never blocks on it. This is why min latency dropped from 106ms to just 2ms.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="background: #1e293b; border-radius: 14px; padding: 28px; border: 1px solid #334155; margin-bottom: 24px;">
+            <h4 style="font-size: 15px; color: #f8fafc; margin-bottom: 16px;">Throughput: Why 292 vs 81 Notifications/sec</h4>
+            <div style="font-size: 13px; color: #94a3b8; line-height: 1.8;">
+                <p><strong style="color: #f87171;">Sync (81/sec):</strong> Each of the 20 test threads holds onto its execution for ~120-430ms (DB + external call + DB update). 
+                With 20 threads, the system can only process <code>20 threads &divide; 0.23s avg = ~87 notifications/sec</code>. 
+                The actual external API call is the bottleneck &mdash; 20 threads are simultaneously sleeping for 100ms, then fighting for DB access.</p>
+                <br>
+                <p><strong style="color: #4ade80;">Async (292/sec):</strong> Each of the 20 test threads finishes in ~5-42ms (just DB save). 
+                They cycle rapidly: <code>20 threads &divide; 0.065s avg = ~308 notifications/sec</code> (close to our measured 292). 
+                The 100ms external call is offloaded to 10 background async threads running in parallel. 
+                The test threads never wait for the external call, so they can submit new notifications much faster.</p>
+                <br>
+                <p style="color: #e2e8f0;"><strong>In essence:</strong> Async separates the <em>acceptance rate</em> (how fast we take in notifications) from the <em>processing rate</em> (how fast we deliver them). 
+                The API can accept 292/sec even though external delivery still runs at ~100/sec. The queue absorbs the difference.</p>
+            </div>
+        </div>
+
+        <div style="background: #1e293b; border-radius: 14px; padding: 28px; border: 1px solid #334155;">
+            <h4 style="font-size: 15px; color: #f8fafc; margin-bottom: 16px;">Total Time: Why 342ms vs 1,230ms for 100 Notifications</h4>
+            <div style="font-size: 13px; color: #94a3b8; line-height: 1.8;">
+                <p><strong style="color: #f87171;">Sync (1,230ms):</strong> 100 notifications processed by 20 threads. 
+                Each thread blocks for ~120ms+. That means ~5 rounds of 20 parallel calls: <code>5 rounds &times; ~230ms avg = ~1,150ms</code> (close to measured 1,230ms). 
+                Every round must fully complete (including the 100ms external call) before the thread can pick up the next notification.</p>
+                <br>
+                <p><strong style="color: #4ade80;">Async (342ms):</strong> 100 notifications submitted by 20 threads. 
+                Each thread only does a DB save (~5-40ms) then moves on. With 20 threads cycling at ~40ms average, all 100 notifications are <em>accepted</em> in <code>5 rounds &times; ~65ms = ~325ms</code> (close to measured 342ms). 
+                The actual email delivery continues in background threads <em>after</em> the test method returns.</p>
+                <br>
+                <p style="padding: 12px; background: #14532d33; border-radius: 8px; color: #86efac;">
+                    <strong>Key insight:</strong> In the async test logs, you can see <code>notif-async-*</code> threads still sending emails AFTER the test method printed its results. 
+                    This proves the fire-and-forget pattern &mdash; the API is done, but delivery continues asynchronously.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== HOW THE JUNIT TEST WORKS ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F9EA;</span> How the JUnit Load Test Works</div>
+
+        <div style="background: #1e293b; border-radius: 14px; padding: 28px; border: 1px solid #334155;">
+            <div style="font-size: 13px; color: #94a3b8; line-height: 1.8;">
+                <p style="margin-bottom: 16px;">Both repositories contain an identical <code>PerformanceLoadTest.java</code> in <code>src/test/java/com/notification/performance/</code>. 
+                The test uses <code>@SpringBootTest</code> to boot the full application context with a real H2 database, JPA, and all channel handlers.</p>
+
+                <div style="display: grid; grid-template-columns: 40px 1fr; gap: 8px 16px; margin-bottom: 20px;">
+                    <div style="background: #7c3aed; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px;">1</div>
+                    <div style="padding-top: 5px;"><strong style="color: #e2e8f0;">@BeforeEach: Seed test users</strong><br>
+                    Creates 10 users via <code>UserService.registerUser()</code> with unique usernames (using <code>System.nanoTime()</code> to avoid duplicates). Each user has email, phone, and device token populated.</div>
+
+                    <div style="background: #7c3aed; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px;">2</div>
+                    <div style="padding-top: 5px;"><strong style="color: #e2e8f0;">Create ExecutorService with 20 threads</strong><br>
+                    A fixed thread pool of 20 threads simulates 20 concurrent API callers. A <code>CountDownLatch(100)</code> tracks when all notifications are submitted.</div>
+
+                    <div style="background: #7c3aed; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px;">3</div>
+                    <div style="padding-top: 5px;"><strong style="color: #e2e8f0;">Submit 100 concurrent sendNotification() calls</strong><br>
+                    Each task builds a <code>SendNotificationRequest</code> for a round-robin user, records <code>System.currentTimeMillis()</code> before and after the call, and stores the elapsed time in a synchronized list.</div>
+
+                    <div style="background: #7c3aed; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px;">4</div>
+                    <div style="padding-top: 5px;"><strong style="color: #e2e8f0;">Await completion &amp; compute metrics</strong><br>
+                    After all 100 tasks complete (via <code>latch.await()</code>), the test sorts the latency list and computes: total time, throughput (success &times; 1000 / totalMs), average, min, max, P50, P95, P99 percentiles.</div>
+
+                    <div style="background: #7c3aed; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px;">5</div>
+                    <div style="padding-top: 5px;"><strong style="color: #e2e8f0;">Assert &amp; log results</strong><br>
+                    Asserts all 100 notifications succeeded with 0 failures, then logs the formatted results table.</div>
+                </div>
+
+                <div style="padding: 14px; background: #0f172a; border-radius: 8px; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 11px; color: #94a3b8; line-height: 1.6; overflow-x: auto;">
+                    <span style="color: #64748b;">// Run the sync test:</span><br>
+                    <span style="color: #38bdf8;">cd</span> Notification-System<br>
+                    mvn test -Dtest=<span style="color: #a78bfa;">"com.notification.performance.PerformanceLoadTest"</span><br><br>
+                    <span style="color: #64748b;">// Run the async test:</span><br>
+                    <span style="color: #38bdf8;">cd</span> Notification-System-With-Scale<br>
+                    mvn test -Dtest=<span style="color: #a78bfa;">"com.notification.performance.PerformanceLoadTest"</span>
+                </div>
+
+                <p style="margin-top: 16px; padding: 12px; background: #713f1233; border-radius: 8px; color: #fde047;">
+                    <strong>Note:</strong> Both repos have a <code>Thread.sleep(100)</code> added to all channel handlers (Email, SMS, Push) to simulate real external API latency. 
+                    Without this delay, both versions would be near-instant (just DB operations) and the async advantage wouldn't be visible.
+                </p>
+            </div>
+        </div>
+    </div>
+
     <!-- Footer -->
     <div style="text-align: center; margin-top: 40px; padding-top: 24px; border-top: 1px solid #1e293b; font-size: 12px; color: #475569;">
         Notification System &bull; Scalability Change #1 &bull; Async Processing &bull; Spring Boot + @Async + ThreadPoolTaskExecutor
