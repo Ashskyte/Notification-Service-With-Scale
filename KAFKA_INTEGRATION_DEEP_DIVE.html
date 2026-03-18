@@ -3,980 +3,1309 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kafka Integration Deep Dive — Message Queue Decoupling</title>
+    <title>Kafka Integration Deep Dive — Notification System</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            background: #0f172a;
+            background: linear-gradient(135deg, #0c0e1a 0%, #111827 50%, #0f172a 100%);
             color: #e2e8f0;
-            line-height: 1.6;
-            padding: 40px 20px;
+            line-height: 1.7;
+            min-height: 100vh;
         }
-        .container { max-width: 1100px; margin: 0 auto; }
-        .header { text-align: center; margin-bottom: 48px; }
-        .header h1 {
-            font-size: 28px;
-            font-weight: 800;
-            background: linear-gradient(135deg, #38bdf8, #a78bfa, #f472b6);
-            -webkit-background-clip: text;
-            background-clip: text;
+
+        /* ── NAV BAR ── */
+        .nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+            background: rgba(15, 23, 42, 0.92);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid #1e293b;
+            padding: 12px 32px;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .nav-brand { font-weight: 800; font-size: 15px; color: #f8fafc; letter-spacing: -0.3px; }
+        .nav-links { display: flex; gap: 6px; flex-wrap: wrap; }
+        .nav-links a {
+            color: #94a3b8; text-decoration: none; font-size: 11px;
+            padding: 4px 10px; border-radius: 6px; transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+        .nav-links a:hover { color: #e2e8f0; background: #1e293b; border-color: #334155; }
+
+        /* ── LAYOUT ── */
+        .container { max-width: 1100px; margin: 0 auto; padding: 80px 24px 60px; }
+
+        /* ── HERO ── */
+        .hero {
+            text-align: center; padding: 64px 0 48px;
+            background: radial-gradient(ellipse at center, rgba(124, 58, 237, 0.08) 0%, transparent 60%);
+        }
+        .hero-badge {
+            display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 1.5px; color: #a78bfa; background: rgba(124, 58, 237, 0.15);
+            border: 1px solid rgba(124, 58, 237, 0.25); border-radius: 20px;
+            padding: 5px 16px; margin-bottom: 20px;
+        }
+        .hero h1 {
+            font-size: 36px; font-weight: 800; letter-spacing: -0.5px;
+            background: linear-gradient(135deg, #38bdf8, #818cf8, #c084fc);
+            -webkit-background-clip: text; background-clip: text;
             -webkit-text-fill-color: transparent;
-            margin-bottom: 8px;
+            margin-bottom: 14px;
         }
-        .header .subtitle { font-size: 14px; color: #64748b; }
+        .hero p { font-size: 15px; color: #64748b; max-width: 640px; margin: 0 auto; }
+
+        /* ── SECTIONS ── */
         .section {
-            background: #1e293b;
-            border-radius: 16px;
-            padding: 32px;
-            margin-bottom: 28px;
-            border: 1px solid #334155;
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(8px);
+            border: 1px solid #293548;
+            border-radius: 20px;
+            padding: 36px 40px;
+            margin-bottom: 32px;
+            position: relative;
+            overflow: hidden;
+        }
+        .section::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+            background: linear-gradient(90deg, transparent, #7c3aed44, transparent);
+        }
+        .section-num {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 32px; height: 32px; border-radius: 10px; font-size: 14px; font-weight: 800;
+            background: linear-gradient(135deg, #7c3aed, #6366f1);
+            color: white; margin-right: 12px; flex-shrink: 0;
         }
         .section-title {
-            font-size: 20px;
-            font-weight: 700;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            font-size: 22px; font-weight: 700; color: #f1f5f9;
+            display: flex; align-items: center; margin-bottom: 20px;
         }
-        .icon { font-size: 24px; }
+        .section-subtitle {
+            font-size: 16px; font-weight: 700; color: #e2e8f0;
+            margin: 28px 0 14px; padding-bottom: 8px;
+            border-bottom: 1px solid #293548;
+        }
+
+        /* ── CODE BLOCKS ── */
         code {
-            background: #0f172a;
-            padding: 2px 7px;
-            border-radius: 4px;
-            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
-            font-size: 12px;
-            color: #a78bfa;
+            background: #0f172a; padding: 2px 8px; border-radius: 5px;
+            font-family: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 12px; color: #c084fc;
         }
         .code-block {
-            background: #020617;
-            border: 1px solid #1e293b;
-            border-radius: 12px;
-            padding: 22px 26px;
-            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
-            font-size: 12.5px;
-            line-height: 1.9;
-            overflow-x: auto;
-            margin: 16px 0;
-            position: relative;
-            white-space: pre;
+            background: #020617; border: 1px solid #1e293b; border-radius: 14px;
+            padding: 24px 28px; overflow-x: auto; margin: 16px 0; position: relative;
+            font-family: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 12.5px; line-height: 1.85; white-space: pre;
         }
-        .code-block .file-tag {
-            position: absolute;
-            top: 8px;
-            right: 12px;
-            font-size: 10px;
-            color: #475569;
-            background: #1e293b;
-            padding: 2px 10px;
-            border-radius: 8px;
+        .file-tag {
+            position: absolute; top: 10px; right: 14px;
+            font-size: 10px; color: #475569; background: #1e293b;
+            padding: 3px 12px; border-radius: 8px; font-weight: 600;
         }
         .kw { color: #c084fc; }
         .ann { color: #f472b6; }
         .str { color: #86efac; }
         .num { color: #fbbf24; }
-        .cmt { color: #475569; }
-        .type { color: #38bdf8; }
-        .method { color: #fde047; }
+        .cmt { color: #475569; font-style: italic; }
+        .typ { color: #38bdf8; }
+        .fn { color: #fde047; }
         .var { color: #e2e8f0; }
-        .danger { color: #f87171; font-weight: 700; }
-        .good { color: #86efac; }
-        .highlight { color: #86efac; font-weight: 700; }
-        .diagram-box {
-            background: #020617;
-            border: 1px solid #293548;
-            border-radius: 12px;
-            padding: 28px;
-            font-family: 'Cascadia Code', monospace;
-            font-size: 12px;
-            color: #94a3b8;
-            line-height: 1.6;
-            overflow-x: auto;
-            white-space: pre;
-            margin: 16px 0;
+
+        /* ── DIAGRAMS ── */
+        .diagram {
+            background: #020617; border: 1px solid #1e293b; border-radius: 14px;
+            padding: 32px; overflow-x: auto; margin: 20px 0;
+            font-family: 'Cascadia Code', 'JetBrains Mono', monospace;
+            font-size: 12.5px; line-height: 1.55; color: #94a3b8; white-space: pre;
         }
-        .info-box {
-            padding: 14px 18px;
-            border-radius: 10px;
-            font-size: 13px;
-            margin-top: 16px;
-            line-height: 1.7;
+        .diagram-title {
+            font-size: 11px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 1.2px; margin-bottom: 16px; display: block;
         }
-        .info-red { background: #7f1d1d33; color: #fca5a5; border: 1px solid #7f1d1d55; }
-        .info-green { background: #14532d33; color: #86efac; border: 1px solid #14532d55; }
-        .info-yellow { background: #713f1233; color: #fde047; border: 1px solid #713f1255; }
-        .info-blue { background: #1e3a5f33; color: #7dd3fc; border: 1px solid #1e3a5f55; }
-        .two-col {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin: 16px 0;
+
+        /* ── CARDS ── */
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 18px 0; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin: 18px 0; }
+        .card {
+            background: #0f172a; border: 1px solid #293548; border-radius: 14px;
+            padding: 22px 24px; transition: border-color 0.3s;
         }
-        .col-card { border-radius: 12px; padding: 20px 24px; }
-        .col-before { background: #7f1d1d22; border: 1px solid #7f1d1d55; }
-        .col-after { background: #14532d22; border: 1px solid #14532d55; }
-        .scenario-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-            background: #0f172a;
-            border-radius: 12px;
-            overflow: hidden;
-            margin: 16px 0;
+        .card:hover { border-color: #475569; }
+        .card-red { border-left: 3px solid #ef4444; }
+        .card-green { border-left: 3px solid #22c55e; }
+        .card-blue { border-left: 3px solid #3b82f6; }
+        .card-purple { border-left: 3px solid #8b5cf6; }
+        .card-yellow { border-left: 3px solid #eab308; }
+        .card-label {
+            font-size: 10px; font-weight: 800; text-transform: uppercase;
+            letter-spacing: 1px; margin-bottom: 10px;
         }
-        .scenario-table th {
-            padding: 12px 16px;
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            color: #64748b;
-            border-bottom: 2px solid #334155;
-            text-align: left;
+        .card-label-red { color: #f87171; }
+        .card-label-green { color: #4ade80; }
+        .card-label-blue { color: #60a5fa; }
+        .card-label-purple { color: #a78bfa; }
+
+        /* ── ALERTS ── */
+        .alert {
+            padding: 16px 20px; border-radius: 12px; font-size: 13px;
+            margin: 18px 0; line-height: 1.8;
         }
-        .scenario-table td {
-            padding: 11px 16px;
-            border-bottom: 1px solid #293548;
-            color: #94a3b8;
+        .alert-red { background: rgba(127, 29, 29, 0.2); border: 1px solid rgba(127, 29, 29, 0.35); color: #fca5a5; }
+        .alert-green { background: rgba(20, 83, 45, 0.2); border: 1px solid rgba(20, 83, 45, 0.35); color: #86efac; }
+        .alert-yellow { background: rgba(113, 63, 18, 0.2); border: 1px solid rgba(113, 63, 18, 0.35); color: #fde047; }
+        .alert-blue { background: rgba(30, 58, 95, 0.2); border: 1px solid rgba(30, 58, 95, 0.35); color: #7dd3fc; }
+        .alert strong { color: inherit; }
+
+        /* ── TABLE ── */
+        .tbl {
+            width: 100%; border-collapse: collapse; font-size: 13px;
+            background: #0f172a; border-radius: 12px; overflow: hidden; margin: 18px 0;
         }
-        .scenario-table td:first-child { color: #cbd5e1; font-weight: 600; }
-        .scenario-table tr:last-child td { border-bottom: none; }
-        .flow-step {
-            display: grid;
-            grid-template-columns: 56px 1fr;
-            gap: 4px 18px;
-            margin: 14px 0;
+        .tbl th {
+            padding: 13px 18px; font-size: 10px; text-transform: uppercase;
+            letter-spacing: 1px; color: #64748b; border-bottom: 2px solid #293548;
+            text-align: left; font-weight: 700;
         }
-        .flow-num {
-            background: #7c3aed;
-            color: white;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 16px;
+        .tbl td { padding: 12px 18px; border-bottom: 1px solid #1e293b; color: #94a3b8; }
+        .tbl td:first-child { color: #cbd5e1; font-weight: 600; }
+        .tbl tr:last-child td { border-bottom: none; }
+        .tbl tr:hover td { background: rgba(30, 41, 59, 0.4); }
+        .cell-good { color: #4ade80 !important; font-weight: 600; }
+        .cell-bad { color: #f87171 !important; font-weight: 600; }
+        .cell-warn { color: #fbbf24 !important; }
+
+        /* ── BADGES ── */
+        .badge {
+            display: inline-block; padding: 3px 11px; border-radius: 20px;
+            font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
         }
-        .flow-content {
-            padding-top: 4px;
-            font-size: 13px;
-            color: #94a3b8;
-            line-height: 1.8;
+        .b-producer { background: rgba(124, 58, 237, 0.2); color: #a78bfa; border: 1px solid rgba(124, 58, 237, 0.3); }
+        .b-consumer { background: rgba(14, 116, 144, 0.2); color: #22d3ee; border: 1px solid rgba(14, 116, 144, 0.3); }
+        .b-dlt { background: rgba(127, 29, 29, 0.2); color: #f87171; border: 1px solid rgba(127, 29, 29, 0.3); }
+        .b-topic { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+        .b-new { background: rgba(22, 163, 74, 0.2); color: #4ade80; border: 1px solid rgba(22, 163, 74, 0.3); }
+        .b-mod { background: rgba(234, 179, 8, 0.2); color: #fde047; border: 1px solid rgba(234, 179, 8, 0.3); }
+
+        /* ── FLOW STEPS ── */
+        .step { display: flex; gap: 18px; margin: 16px 0; }
+        .step-num {
+            width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 800; font-size: 17px; color: white;
+            background: linear-gradient(135deg, #7c3aed, #6366f1);
         }
-        .flow-content strong { color: #e2e8f0; }
+        .step-body { padding-top: 6px; font-size: 13px; color: #94a3b8; line-height: 1.85; }
+        .step-body strong { color: #e2e8f0; }
+
+        /* ── TOPIC CARDS ── */
         .topic-card {
-            background: #0f172a;
-            border-radius: 12px;
-            padding: 18px 22px;
-            border: 1px solid #334155;
-            margin: 10px 0;
+            background: #0f172a; border-radius: 14px; padding: 20px 24px;
+            border: 1px solid #293548; margin: 12px 0;
         }
         .topic-name {
-            font-family: 'Cascadia Code', monospace;
-            font-size: 14px;
-            color: #38bdf8;
-            font-weight: 700;
-            margin-bottom: 6px;
+            font-family: 'Cascadia Code', monospace; font-size: 15px;
+            font-weight: 700; margin-bottom: 8px;
         }
-        .topic-desc { font-size: 12px; color: #94a3b8; line-height: 1.7; }
-        .badge {
-            display: inline-block;
-            padding: 2px 10px;
-            border-radius: 20px;
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+        .topic-name-blue { color: #38bdf8; }
+        .topic-name-orange { color: #fb923c; }
+        .topic-name-red { color: #f87171; }
+        .topic-meta { font-size: 12px; color: #64748b; line-height: 1.8; }
+        .topic-meta strong { color: #94a3b8; }
+
+        /* ── FOOTER ── */
+        .footer {
+            text-align: center; margin-top: 48px; padding: 24px 0;
+            border-top: 1px solid #1e293b; font-size: 12px; color: #475569;
         }
-        .badge-producer { background: #7c3aed33; color: #a78bfa; border: 1px solid #7c3aed55; }
-        .badge-consumer { background: #0e749033; color: #22d3ee; border: 1px solid #0e749055; }
-        .badge-dlt { background: #7f1d1d33; color: #f87171; border: 1px solid #7f1d1d55; }
-        .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin: 16px 0; }
+
+        p { font-size: 14px; color: #94a3b8; margin-bottom: 14px; }
+        .text-sm { font-size: 13px; }
+        .mb-0 { margin-bottom: 0; }
     </style>
 </head>
 <body>
+
+<!-- ═══════════════ NAVIGATION ═══════════════ -->
+<nav class="nav">
+    <div class="nav-brand">Notification System &mdash; Kafka Deep Dive</div>
+    <div class="nav-links">
+        <a href="#problem">Problem</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#topics">Topics</a>
+        <a href="#flow">Message Flow</a>
+        <a href="#event">Event DTO</a>
+        <a href="#config">Config</a>
+        <a href="#producer">Producer</a>
+        <a href="#consumer">Consumer</a>
+        <a href="#service">Service Changes</a>
+        <a href="#dlt">DLT</a>
+        <a href="#scaling">Scaling</a>
+        <a href="#comparison">Comparison</a>
+        <a href="#files">Files</a>
+    </div>
+</nav>
+
 <div class="container">
 
-    <!-- Header -->
-    <div class="header">
-        <h1>Kafka Integration Deep Dive</h1>
-        <div class="subtitle">
-            Decoupling the Notification System with Apache Kafka &bull; Message Queues, Topics, Producers &amp; Consumers &bull; March 2026
-        </div>
-    </div>
+<!-- ═══════════════ HERO ═══════════════ -->
+<div class="hero">
+    <div class="hero-badge">Release Branch: release-kafka-integration</div>
+    <h1>Apache Kafka Integration</h1>
+    <p>Decoupling the Notification System with persistent message queues &mdash; replacing in-memory @Async with
+       fault-tolerant, horizontally scalable event-driven processing.</p>
+</div>
 
-    <!-- ========== 1. WHY KAFKA ========== -->
-    <div class="section">
-        <div class="section-title"><span class="icon">&#x1F4E8;</span> Why Kafka? The Problem with Direct @Async</div>
+<!-- ═══════════════ 1. THE PROBLEM ═══════════════ -->
+<div class="section" id="problem">
+    <div class="section-title"><span class="section-num">1</span> The Problem &mdash; Why @Async Is Not Enough</div>
 
-        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 16px;">
-            Our previous architecture used Spring's <code>@Async</code> with a <code>ThreadPoolTaskExecutor</code> to process
-            notifications in background threads. While this was a huge improvement over synchronous processing,
-            it has fundamental limitations at scale:
-        </p>
+    <p>Our previous architecture used Spring's <code>@Async</code> with a <code>ThreadPoolTaskExecutor</code>
+       to process notifications in background threads. While this was a huge improvement over synchronous processing,
+       it has fundamental limitations when operating at scale.</p>
 
-        <div class="two-col">
-            <div class="col-card col-before">
-                <div style="font-size: 12px; font-weight: 700; color: #f87171; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px;">&#x274C; Problems with @Async Only</div>
-                <div style="font-size: 13px; color: #94a3b8; line-height: 2;">
-                    - <strong>In-memory queue</strong> — if app crashes, queued tasks are lost<br>
-                    - <strong>No replay</strong> — failed events cannot be re-consumed<br>
-                    - <strong>Single instance</strong> — can't distribute work across servers<br>
-                    - <strong>Tight coupling</strong> — producer and consumer in same JVM<br>
-                    - <strong>No backpressure</strong> — queue capacity is finite, CallerRunsPolicy blocks HTTP thread<br>
-                    - <strong>No ordering guarantees</strong> — thread pool doesn't guarantee order
-                </div>
-            </div>
-            <div class="col-card col-after">
-                <div style="font-size: 12px; font-weight: 700; color: #4ade80; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px;">&#x2705; What Kafka Adds</div>
-                <div style="font-size: 13px; color: #94a3b8; line-height: 2;">
-                    - <strong>Persistent queue</strong> — messages survive broker restarts<br>
-                    - <strong>Replay capability</strong> — re-read messages from any offset<br>
-                    - <strong>Horizontal scaling</strong> — add consumer instances across servers<br>
-                    - <strong>Full decoupling</strong> — producer and consumer are independent<br>
-                    - <strong>Backpressure built-in</strong> — consumers pull at their own pace<br>
-                    - <strong>Partition ordering</strong> — same key always goes to same partition
-                </div>
-            </div>
-        </div>
+    <div class="diagram">
+<span class="diagram-title" style="color:#f87171;">CURRENT ARCHITECTURE — @Async with In-Memory Thread Pool</span>
 
-        <div class="diagram-box">
-    <span style="color:#f87171;">BEFORE: Direct @Async (in-memory, tightly coupled)</span>
+   ┌─────────────────┐          ┌─────────────────────────────────────┐
+   │   HTTP Client    │          │         Spring Boot Application     │
+   │                  │          │                                     │
+   │  POST /api/send  │ ───────▶│  NotificationService                │
+   │                  │          │    │                                │
+   └─────────────────┘          │    ▼                                │
+                                │  notificationRepository.save()      │
+                                │    │                                │
+                                │    ▼                                │
+                                │  processingService                  │
+                                │     .processNotificationAsync()     │
+                                │    │                                │
+                                │    ▼                                │
+                                │  ┌───────────────────────────────┐  │
+                                │  │   ThreadPoolTaskExecutor       │  │
+                                │  │   ┌───────────────────────┐   │  │
+                                │  │   │  In-Memory Queue       │   │  │
+                                │  │   │  (capacity: 10,000)    │   │  │
+                                │  │   └───────┬───────────────┘   │  │
+                                │  │           │                   │  │
+                                │  │   ┌───────┼───────┐           │  │
+                                │  │   │  T-1  │  T-2  │  ...T-50 │  │
+                                │  │   └───┬───┴───┬───┘           │  │
+                                │  └───────┼───────┼───────────────┘  │
+                                │          ▼       ▼                  │
+                                │    Email/SMS/Push handlers          │
+                                └─────────────────────────────────────┘
 
-    ┌──────────────┐     save to DB     ┌──────────────────────┐
-    │  HTTP Request │ ────────────── → │   NotificationService  │
-    │  /api/send    │                   │   .sendNotification()  │
-    └──────────────┘                    └──────────┬─────────────┘
-                                                   │
-                                    processingService.processNotificationAsync()
-                                                   │
-                                                   ▼
-                                    ┌──────────────────────────┐
-                                    │  ThreadPoolTaskExecutor   │
-                                    │  (in-memory queue, 10K)   │
-                                    │  ┌─────┬─────┬─────┐     │
-                                    │  │ T-1 │ T-2 │ T-3 │ ... │  ← Threads in same JVM
-                                    │  └──┬──┴──┬──┴──┬──┘     │
-                                    └─────┼─────┼─────┼────────┘
-                                          ▼     ▼     ▼
-                                    Send Email/SMS/Push
+   <span style="color:#f87171;">█</span> Everything runs inside ONE JVM — one single point of failure</div>
 
-    <span style="color:#f87171;">⚠ If JVM crashes → all queued tasks LOST</span>
-    <span style="color:#f87171;">⚠ Cannot scale consumers independently</span>
-
-
-    <span style="color:#86efac;">AFTER: Kafka (persistent, decoupled, scalable)</span>
-
-    ┌──────────────┐     save to DB     ┌──────────────────────┐
-    │  HTTP Request │ ────────────── → │   NotificationService  │
-    │  /api/send    │                   │   .sendNotification()  │
-    └──────────────┘                    └──────────┬─────────────┘
-                                                   │
-                                    kafkaProducer.sendNotificationEvent()
-                                                   │
-                                                   ▼
-                                    ┌──────────────────────────────┐
-                                    │     Apache Kafka Broker       │
-                                    │  ┌────────────────────────┐  │
-                                    │  │ notification-send topic │  │
-                                    │  │  P0  │  P1  │  P2      │  │  ← 3 partitions
-                                    │  └──┬──────┬──────┬───────┘  │
-                                    │     │      │      │          │
-                                    └─────┼──────┼──────┼──────────┘
-                                          ▼      ▼      ▼
-                              ┌───────────────────────────────────┐
-                              │  Kafka Consumers (3 concurrent)    │
-                              │  C-1: processNotification()        │
-                              │  C-2: processNotification()        │
-                              │  C-3: processNotification()        │
-                              └───────────────────────────────────┘
-                                          │
-                                    Send Email/SMS/Push
-
-    <span style="color:#86efac;">✓ Messages persisted to disk — survive crashes</span>
-    <span style="color:#86efac;">✓ Scale consumers independently across servers</span>
-    <span style="color:#86efac;">✓ Replay failed messages from any point in time</span></div>
-    </div>
-
-    <!-- ========== 2. ARCHITECTURE OVERVIEW ========== -->
-    <div class="section">
-        <div class="section-title"><span class="icon">&#x1F3D7;</span> Architecture Overview: Topics, Producers &amp; Consumers</div>
-
-        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 20px;">
-            The Kafka integration introduces 4 topics, 1 producer, and 1 consumer component with 4 listener methods.
-        </p>
-
-        <!-- Topics -->
-        <h3 style="font-size: 16px; color: #f8fafc; margin-bottom: 14px;">Kafka Topics</h3>
-
-        <div class="two-col">
-            <div class="topic-card">
-                <div class="topic-name">notification-send <span class="badge badge-producer" style="margin-left: 8px;">3 partitions</span></div>
-                <div class="topic-desc">
-                    <strong>Purpose:</strong> Main topic for new notifications that need to be processed and delivered.<br>
-                    <strong>Key:</strong> <code>notificationId</code> — ensures same notification always goes to same partition.<br>
-                    <strong>Producer:</strong> <code>NotificationService</code> publishes here after saving notification to DB.<br>
-                    <strong>Consumer:</strong> <code>NotificationKafkaConsumer.consumeSendEvent()</code> picks up and calls <code>processNotification()</code>.
-                </div>
-            </div>
-            <div class="topic-card">
-                <div class="topic-name">notification-retry <span class="badge badge-producer" style="margin-left: 8px;">3 partitions</span></div>
-                <div class="topic-desc">
-                    <strong>Purpose:</strong> Topic for notifications that failed and need to be retried.<br>
-                    <strong>Key:</strong> <code>notificationId</code><br>
-                    <strong>Producer:</strong> <code>RetryService</code> can publish here for event-driven retries.<br>
-                    <strong>Consumer:</strong> <code>NotificationKafkaConsumer.consumeRetryEvent()</code> picks up and calls <code>retryService.executeRetry()</code>.
-                </div>
+    <div class="grid-2">
+        <div class="card card-red">
+            <div class="card-label card-label-red">&#x26A0; Critical Risks</div>
+            <div class="text-sm" style="color: #94a3b8; line-height: 2.1;">
+                <strong style="color:#f87171;">1. Data Loss on Crash</strong> — All 10,000 queued tasks vanish if JVM dies<br>
+                <strong style="color:#f87171;">2. No Replay</strong> — Failed events cannot be re-consumed or audited<br>
+                <strong style="color:#f87171;">3. Single Instance</strong> — Cannot distribute work across multiple servers<br>
+                <strong style="color:#f87171;">4. Tight Coupling</strong> — Producer and consumer share the same JVM process<br>
+                <strong style="color:#f87171;">5. No Backpressure</strong> — When queue is full, CallerRunsPolicy blocks HTTP threads<br>
+                <strong style="color:#f87171;">6. No Ordering</strong> — Thread pool does not guarantee message ordering
             </div>
         </div>
-        <div class="two-col">
-            <div class="topic-card" style="border-color: #7f1d1d55;">
-                <div class="topic-name" style="color: #f87171;">notification-send.DLT <span class="badge badge-dlt" style="margin-left: 8px;">Dead Letter</span></div>
-                <div class="topic-desc">
-                    <strong>Purpose:</strong> Messages that failed 3 times on the <code>notification-send</code> topic land here.<br>
-                    <strong>Consumer:</strong> <code>consumeSendDlt()</code> logs the failure for manual intervention.<br>
-                    <strong>Action:</strong> Operations team investigates and replays or resolves manually.
-                </div>
-            </div>
-            <div class="topic-card" style="border-color: #7f1d1d55;">
-                <div class="topic-name" style="color: #f87171;">notification-retry.DLT <span class="badge badge-dlt" style="margin-left: 8px;">Dead Letter</span></div>
-                <div class="topic-desc">
-                    <strong>Purpose:</strong> Messages that failed 3 times on the <code>notification-retry</code> topic land here.<br>
-                    <strong>Consumer:</strong> <code>consumeRetryDlt()</code> logs the failure for manual intervention.<br>
-                    <strong>Action:</strong> Permanent failures that need human review.
-                </div>
-            </div>
-        </div>
-
-        <!-- Producer & Consumer -->
-        <h3 style="font-size: 16px; color: #f8fafc; margin: 24px 0 14px;">Producer &amp; Consumer Components</h3>
-
-        <div class="two-col">
-            <div class="topic-card">
-                <div style="font-size: 13px; font-weight: 700; color: #a78bfa; margin-bottom: 8px;">
-                    <span class="badge badge-producer">Producer</span> NotificationKafkaProducer
-                </div>
-                <div class="topic-desc">
-                    <strong>Class:</strong> <code>com.notification.kafka.NotificationKafkaProducer</code><br>
-                    <strong>Methods:</strong><br>
-                    &nbsp;&nbsp;- <code>sendNotificationEvent()</code> → publishes to <code>notification-send</code><br>
-                    &nbsp;&nbsp;- <code>sendRetryEvent()</code> → publishes to <code>notification-retry</code><br>
-                    <strong>Key strategy:</strong> Uses <code>notificationId</code> as the Kafka message key to ensure partition affinity.
-                </div>
-            </div>
-            <div class="topic-card">
-                <div style="font-size: 13px; font-weight: 700; color: #22d3ee; margin-bottom: 8px;">
-                    <span class="badge badge-consumer">Consumer</span> NotificationKafkaConsumer
-                </div>
-                <div class="topic-desc">
-                    <strong>Class:</strong> <code>com.notification.kafka.NotificationKafkaConsumer</code><br>
-                    <strong>Listeners:</strong><br>
-                    &nbsp;&nbsp;- <code>consumeSendEvent()</code> → reads from <code>notification-send</code><br>
-                    &nbsp;&nbsp;- <code>consumeRetryEvent()</code> → reads from <code>notification-retry</code><br>
-                    &nbsp;&nbsp;- <code>consumeSendDlt()</code> → reads from <code>notification-send.DLT</code><br>
-                    &nbsp;&nbsp;- <code>consumeRetryDlt()</code> → reads from <code>notification-retry.DLT</code>
-                </div>
+        <div class="card card-green">
+            <div class="card-label card-label-green">&#x2705; What Kafka Solves</div>
+            <div class="text-sm" style="color: #94a3b8; line-height: 2.1;">
+                <strong style="color:#4ade80;">1. Persistent Queue</strong> — Messages survive broker and app restarts<br>
+                <strong style="color:#4ade80;">2. Replay Capability</strong> — Re-read messages from any offset at any time<br>
+                <strong style="color:#4ade80;">3. Horizontal Scaling</strong> — Add consumer instances, Kafka auto-rebalances<br>
+                <strong style="color:#4ade80;">4. Full Decoupling</strong> — Producer and consumer are independent processes<br>
+                <strong style="color:#4ade80;">5. Backpressure Built-in</strong> — Consumers pull at their own pace<br>
+                <strong style="color:#4ade80;">6. Partition Ordering</strong> — Same key always goes to same partition in order
             </div>
         </div>
     </div>
 
-    <!-- ========== 3. MESSAGE FLOW STEP BY STEP ========== -->
-    <div class="section">
-        <div class="section-title"><span class="icon">&#x1F500;</span> Message Flow: Step by Step</div>
+    <div class="alert alert-red">
+        <strong>Real-world disaster scenario:</strong> Imagine 50,000 notifications are queued in the @Async thread pool
+        during a Black Friday sale. The application crashes due to an OutOfMemoryError. <strong>All 50,000 notifications
+        are permanently lost</strong> — users never get their order confirmations. With Kafka, every single message
+        is persisted to disk before acknowledgment — zero data loss even during crashes.
+    </div>
+</div>
 
-        <h3 style="font-size: 15px; color: #f8fafc; margin-bottom: 14px;">Flow 1: Sending a New Notification</h3>
+<!-- ═══════════════ 2. NEW ARCHITECTURE ═══════════════ -->
+<div class="section" id="architecture">
+    <div class="section-title"><span class="section-num">2</span> New Architecture &mdash; Kafka Message-Driven</div>
 
-        <div class="flow-step">
-            <div class="flow-num">1</div>
-            <div class="flow-content">
-                <strong>HTTP Request arrives at <code>/api/notifications/send</code></strong><br>
-                The controller calls <code>NotificationService.sendNotification()</code>.
-            </div>
+    <div class="diagram">
+<span class="diagram-title" style="color:#4ade80;">NEW ARCHITECTURE — Kafka Decoupled Message Queue</span>
 
-            <div class="flow-num">2</div>
-            <div class="flow-content">
-                <strong>Save notification to database with status=PENDING</strong><br>
-                <code>notificationRepository.save(notification)</code> — notification gets a DB-generated ID.
-            </div>
+   ┌─────────────────┐
+   │   HTTP Client    │
+   │  POST /api/send  │
+   └────────┬────────┘
+            │
+            ▼
+   ┌────────────────────────┐     ┌──────────────────────────────────────────────┐
+   │ NotificationService    │     │            APACHE KAFKA BROKER               │
+   │                        │     │                                              │
+   │  1. Save to DB         │     │  ┌────────────────────────────────────────┐  │
+   │     (status=PENDING)   │     │  │      notification-send  (3 partitions) │  │
+   │                        │     │  │                                        │  │
+   │  2. Publish to Kafka ──┼────▶│  │   P0: [id:42] [id:45] [id:48] ...     │  │
+   │     {id, type:SEND}    │     │  │   P1: [id:43] [id:46] [id:49] ...     │  │
+   │                        │     │  │   P2: [id:44] [id:47] [id:50] ...     │  │
+   │  3. Return 200 PENDING │     │  │                                        │  │
+   └────────────────────────┘     │  └───────┬──────────┬──────────┬─────────┘  │
+                                  │          │          │          │            │
+            ┌─────────────────────┼──────────┘          │          └────────┐   │
+            │                     │                     │                   │   │
+            │                     │  ┌──────────────────┴───────────────┐   │   │
+            │                     │  │     notification-retry (3 parts) │   │   │
+            │                     │  └──────────────────────────────────┘   │   │
+            │                     │                                        │   │
+            │                     │  ┌──────────────────────────────────┐   │   │
+            │                     │  │     notification-send.DLT        │   │   │
+            │                     │  │     notification-retry.DLT       │   │   │
+            │                     │  └──────────────────────────────────┘   │   │
+            │                     └────────────────────────────────────────┘   │
+            │                                                                  │
+            ▼                          ▼                         ▼             │
+   ┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐           │
+   │  Consumer C-0   │   │  Consumer C-1   │   │  Consumer C-2   │           │
+   │  ← Partition 0  │   │  ← Partition 1  │   │  ← Partition 2  │           │
+   │                 │   │                 │   │                 │           │
+   │  Fetch from DB  │   │  Fetch from DB  │   │  Fetch from DB  │
+   │  Process &amp; Send │   │  Process &amp; Send │   │  Process &amp; Send │
+   │  Email/SMS/Push │   │  Email/SMS/Push │   │  Email/SMS/Push │
+   └─────────────────┘   └─────────────────┘   └─────────────────┘
 
-            <div class="flow-num">3</div>
-            <div class="flow-content">
-                <strong>Publish event to Kafka topic <code>notification-send</code></strong><br>
-                <code>kafkaProducer.sendNotificationEvent(NotificationEvent.ofSend(id))</code><br>
-                The message key is the notificationId (ensures ordering per notification).
-            </div>
+   <span style="color:#4ade80;">✓</span> Messages persisted to Kafka disk — survive any crash
+   <span style="color:#4ade80;">✓</span> 3 consumers process in parallel — triple the throughput
+   <span style="color:#4ade80;">✓</span> Scale by adding more app instances — Kafka auto-rebalances
+   <span style="color:#4ade80;">✓</span> Failed messages → Dead Letter Topic for manual review</div>
 
-            <div class="flow-num">4</div>
-            <div class="flow-content">
-                <strong>HTTP response returned immediately to client</strong><br>
-                Client gets <code>NotificationResponse</code> with <code>status=PENDING</code>. Processing happens asynchronously via Kafka.
-            </div>
+    <div class="alert alert-green">
+        <strong>Key insight:</strong> The HTTP thread no longer waits for notification processing. It saves to DB,
+        publishes a lightweight event (just the notification ID) to Kafka, and returns immediately.
+        The consumer — running in a separate thread (or even a separate server) — picks up the event and does the heavy work.
+    </div>
+</div>
 
-            <div class="flow-num">5</div>
-            <div class="flow-content">
-                <strong>Kafka consumer picks up the event</strong><br>
-                <code>consumeSendEvent()</code> fetches the notification from DB by ID, calls <code>processNotification()</code>.
-            </div>
+<!-- ═══════════════ 3. KAFKA TOPICS ═══════════════ -->
+<div class="section" id="topics">
+    <div class="section-title"><span class="section-num">3</span> Kafka Topics &mdash; Our Message Channels</div>
 
-            <div class="flow-num">6</div>
-            <div class="flow-content">
-                <strong>Notification is processed and delivered</strong><br>
-                The channel handler (Email/SMS/Push) sends the notification. Status updated to <code>SENT</code> or <code>FAILED</code>.
+    <p>We define 4 Kafka topics — 2 main processing topics and 2 dead letter topics for failure handling.</p>
+
+    <div class="grid-2">
+        <div class="topic-card">
+            <div class="topic-name topic-name-blue">notification-send <span class="badge b-topic" style="margin-left:8px;">3 partitions</span></div>
+            <div class="topic-meta">
+                <strong>Purpose:</strong> Main topic for new notifications that need processing and delivery.<br>
+                <strong>Message Key:</strong> <code>notificationId</code> — same notification always goes to the same partition.<br>
+                <strong>Producer:</strong> <code>NotificationService</code> publishes after saving notification to DB.<br>
+                <strong>Consumer:</strong> <code>NotificationKafkaConsumer.consumeSendEvent()</code> fetches from DB and calls <code>processNotification()</code>.<br>
+                <strong>Volume:</strong> High — every new notification passes through this topic.
             </div>
         </div>
-
-        <div class="diagram-box">
-    <span style="color:#fbbf24;">Flow 1: New Notification — Happy Path</span>
-
-    Client                    NotificationService           Kafka                    Consumer
-      │                            │                          │                         │
-      │── POST /api/send ────────→ │                          │                         │
-      │                            │── save(PENDING) ───→ DB  │                         │
-      │                            │                          │                         │
-      │                            │── publish ──────────→ │  │                         │
-      │                            │   {id:42, type:SEND}  │  │                         │
-      │                            │                       │  │                         │
-      │ ← 200 {status:PENDING} ── │                       │  │                         │
-      │                            │                       │  │── poll() ──────────→ │  │
-      │                            │                       │  │                      │  │
-      │                            │                       │  │  {id:42, type:SEND}  │  │
-      │                            │                       │  │                      │  │
-      │                            │                          │── fetch(id:42) → DB     │
-      │                            │                          │── processNotification() │
-      │                            │                          │── handler.send()        │
-      │                            │                          │── save(SENT) ──→ DB     │
-      │                            │                          │                         │</div>
-
-        <h3 style="font-size: 15px; color: #f8fafc; margin: 24px 0 14px;">Flow 2: Failure &amp; Dead Letter Topic</h3>
-
-        <div class="diagram-box">
-    <span style="color:#f87171;">Flow 2: Failure Path with Dead Letter Topic</span>
-
-    Consumer                          Kafka Error Handler              DLT
-      │                                     │                          │
-      │── consumeSendEvent()                │                          │
-      │   processNotification() → <span style="color:#f87171;">EXCEPTION</span>  │                          │
-      │                                     │                          │
-      │   <span style="color:#fbbf24;">Attempt 1 failed</span> ──────────────→ │                          │
-      │                               wait 1s                         │
-      │   <span style="color:#fbbf24;">Attempt 2 failed</span> ──────────────→ │                          │
-      │                               wait 1s                         │
-      │   <span style="color:#f87171;">Attempt 3 failed (FINAL)</span> ─────→ │                          │
-      │                                     │                          │
-      │                                     │── publish to .DLT ────→ │
-      │                                     │   {id:42, type:SEND}     │
-      │                                     │                          │
-      │                                     │                          │── consumeSendDlt()
-      │                                     │                          │   LOG ERROR
-      │                                     │                          │   "Manual intervention required"</div>
+        <div class="topic-card">
+            <div class="topic-name topic-name-orange">notification-retry <span class="badge b-topic" style="margin-left:8px;">3 partitions</span></div>
+            <div class="topic-meta">
+                <strong>Purpose:</strong> Topic for notifications that failed and need to be retried via Kafka.<br>
+                <strong>Message Key:</strong> <code>notificationId</code><br>
+                <strong>Producer:</strong> <code>NotificationKafkaProducer.sendRetryEvent()</code> publishes retry events.<br>
+                <strong>Consumer:</strong> <code>NotificationKafkaConsumer.consumeRetryEvent()</code> calls <code>retryService.executeRetry()</code>.<br>
+                <strong>Volume:</strong> Low — only failed notifications that need event-driven retries.
+            </div>
+        </div>
+    </div>
+    <div class="grid-2">
+        <div class="topic-card" style="border-color: rgba(239, 68, 68, 0.25);">
+            <div class="topic-name topic-name-red">notification-send.DLT <span class="badge b-dlt" style="margin-left:8px;">Dead Letter</span></div>
+            <div class="topic-meta">
+                <strong>Purpose:</strong> Messages from <code>notification-send</code> that failed <strong>all 3 processing attempts</strong>.<br>
+                <strong>Partitions:</strong> 1 (low volume — this is an error queue).<br>
+                <strong>Consumer:</strong> <code>consumeSendDlt()</code> logs the error for manual investigation.<br>
+                <strong>Action:</strong> Operations team reviews, fixes root cause, and replays.
+            </div>
+        </div>
+        <div class="topic-card" style="border-color: rgba(239, 68, 68, 0.25);">
+            <div class="topic-name topic-name-red">notification-retry.DLT <span class="badge b-dlt" style="margin-left:8px;">Dead Letter</span></div>
+            <div class="topic-meta">
+                <strong>Purpose:</strong> Messages from <code>notification-retry</code> that failed all processing attempts.<br>
+                <strong>Partitions:</strong> 1 (low volume).<br>
+                <strong>Consumer:</strong> <code>consumeRetryDlt()</code> logs permanently failed retries.<br>
+                <strong>Action:</strong> Permanent failures requiring human intervention.
+            </div>
+        </div>
     </div>
 
-    <!-- ========== 4. EVENT DTO ========== -->
-    <div class="section">
-        <div class="section-title"><span class="icon">&#x1F4E6;</span> Step 1: The Kafka Event DTO — NotificationEvent</div>
+    <div class="diagram">
+<span class="diagram-title" style="color:#38bdf8;">TOPIC RELATIONSHIP MAP</span>
 
-        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 12px;">
-            The event carries minimal data: just the <code>notificationId</code> and <code>eventType</code>.
-            The full notification data stays in the database — the consumer fetches it by ID.
-            This is the <strong>event-carried state transfer</strong> pattern:
-            lightweight events, heavy data stays in the source of truth (DB).
-        </p>
+                        ┌─────────────────────┐
+                        │  NotificationService │
+                        │     (PRODUCER)       │
+                        └──────────┬──────────┘
+                                   │  publish
+                                   ▼
+                  ┌────────────────────────────────┐
+                  │     notification-send           │
+                  │     (3 partitions, 1 replica)   │
+                  └───────────────┬────────────────┘
+                                  │  consume
+                                  ▼
+                  ┌────────────────────────────────┐
+                  │  NotificationKafkaConsumer      │
+                  │  consumeSendEvent()             │
+                  └───────┬──────────────┬─────────┘
+                          │              │
+                   success│              │ fail (after 3 attempts)
+                          ▼              ▼
+                  ┌──────────┐   ┌────────────────────┐
+                  │  DB:SENT │   │ notification-send   │
+                  └──────────┘   │      .DLT           │
+                                 └────────┬───────────┘
+                                          │  consume
+                                          ▼
+                                 ┌────────────────────┐
+                                 │  consumeSendDlt()   │
+                                 │  LOG ERROR          │
+                                 │  Manual review      │
+                                 └────────────────────┘</div>
+</div>
 
-        <div class="code-block"><div class="file-tag">NotificationEvent.java</div>
+<!-- ═══════════════ 4. MESSAGE FLOW ═══════════════ -->
+<div class="section" id="flow">
+    <div class="section-title"><span class="section-num">4</span> Message Flow &mdash; Step by Step</div>
+
+    <div class="section-subtitle">Flow 1: Sending a New Notification (Happy Path)</div>
+
+    <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+            <strong>HTTP Request arrives</strong> at <code>POST /api/notifications/send</code><br>
+            Controller validates the request and calls <code>NotificationService.sendNotification()</code>.
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+            <strong>Notification saved to database</strong> with <code>status = PENDING</code><br>
+            <code>notificationRepository.save(notification)</code> — the notification gets a DB-generated primary key ID.
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+            <strong>Event published to Kafka</strong> topic <code>notification-send</code><br>
+            <code>kafkaProducer.sendNotificationEvent(NotificationEvent.ofSend(id))</code><br>
+            The message key = <code>notificationId</code> — this ensures ordering per notification.
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+            <strong>HTTP 200 returned immediately</strong> to the client<br>
+            Client gets <code>NotificationResponse</code> with <code>status=PENDING</code>. The actual sending happens asynchronously via Kafka.
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+            <strong>Kafka Consumer picks up the event</strong><br>
+            <code>consumeSendEvent()</code> receives the event, fetches the full <code>Notification</code> entity from DB using the ID.
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-body">
+            <strong>Notification processed and delivered</strong><br>
+            <code>processingService.processNotification()</code> resolves the channel handler (Email/SMS/Push) and sends.
+            Status updated to <code>SENT</code> on success, or <code>FAILED</code> → <code>scheduleRetry()</code> on failure.
+        </div>
+    </div>
+
+    <div class="diagram">
+<span class="diagram-title" style="color:#4ade80;">FLOW 1: HAPPY PATH — New Notification</span>
+
+  Client              NotificationService         Kafka Broker            Consumer
+    │                       │                         │                      │
+    │── POST /api/send ───▶ │                         │                      │
+    │                       │── save(PENDING) ──▶ DB  │                      │
+    │                       │                         │                      │
+    │                       │── publish ─────────────▶│                      │
+    │                       │   {id:42, type:SEND}    │                      │
+    │                       │                         │                      │
+    │◀─ 200 {PENDING} ─────│                         │                      │
+    │                       │                         │                      │
+    │                       │                         │── deliver ──────────▶│
+    │                       │                         │   {id:42, type:SEND} │
+    │                       │                         │                      │
+    │                       │                         │     findById(42) ──▶ DB
+    │                       │                         │                      │
+    │                       │                         │     processNotification()
+    │                       │                         │     handler.send()
+    │                       │                         │                      │
+    │                       │                         │     save(SENT) ────▶ DB
+    │                       │                         │                      │
+    │                       │                         │◀── ACK ─────────────│
+    │                       │                         │                      │
+
+  <span style="color:#4ade80;">✓ Client gets instant response — no waiting for email/SMS delivery</span>
+  <span style="color:#4ade80;">✓ If consumer crashes mid-processing, Kafka re-delivers the message</span>
+  <span style="color:#4ade80;">✓ The notification ID in the message stays tiny — full data lives in DB</span></div>
+
+    <div class="section-subtitle">Flow 2: Failure &amp; Dead Letter Topic (DLT) Path</div>
+
+    <div class="diagram">
+<span class="diagram-title" style="color:#f87171;">FLOW 2: FAILURE PATH — Consumer Fails → DLT</span>
+
+  Consumer                       Kafka Error Handler              Dead Letter Topic
+    │                                  │                                │
+    │── consumeSendEvent()             │                                │
+    │   processNotification()          │                                │
+    │   handler.send() ──▶ <span style="color:#f87171;">EXCEPTION!</span>   │                                │
+    │                                  │                                │
+    │   <span style="color:#fbbf24;">Attempt 1 FAILED</span> ───────────▶ │  (catch exception)              │
+    │                            wait 1 second                         │
+    │   <span style="color:#fbbf24;">Attempt 2 FAILED</span> ───────────▶ │  (retry #1)                     │
+    │                            wait 1 second                         │
+    │   <span style="color:#f87171;">Attempt 3 FAILED (FINAL)</span> ──▶ │  (retry #2 — last chance)       │
+    │                                  │                                │
+    │                                  │── publish to .DLT ────────────▶│
+    │                                  │   {id:42, type:SEND}           │
+    │                                  │                                │
+    │                                  │                                │── consumeSendDlt()
+    │                                  │                                │   LOG.error(...)
+    │                                  │                                │   "Manual intervention
+    │                                  │                                │    required for id:42"
+    │                                  │                                │
+    │   offset committed ◀─────────── │                                │
+    │   (move to next message)         │                                │
+
+  <span style="color:#fbbf24;">Total attempts: 3 (1 original + 2 retries) with 1-second intervals</span>
+  <span style="color:#f87171;">After exhausting retries, message lands in .DLT for manual investigation</span></div>
+</div>
+
+<!-- ═══════════════ 5. EVENT DTO ═══════════════ -->
+<div class="section" id="event">
+    <div class="section-title"><span class="section-num">5</span> The Event DTO &mdash; NotificationEvent.java</div>
+
+    <p>The Kafka message carries <strong>minimal data</strong>: just the notification ID, event type, and timestamp.
+       The full notification data stays in the database — the consumer fetches it by ID.
+       This is the <strong>event-carried state transfer</strong> pattern.</p>
+
+    <div class="code-block"><div class="file-tag">com/notification/event/NotificationEvent.java</div>
 <span class="kw">package</span> com.notification.event;
 
+<span class="kw">import</span> lombok.*;
+<span class="kw">import</span> java.io.Serializable;
+<span class="kw">import</span> java.time.LocalDateTime;
+
 <span class="ann">@Getter</span> <span class="ann">@Setter</span> <span class="ann">@NoArgsConstructor</span> <span class="ann">@AllArgsConstructor</span> <span class="ann">@Builder</span> <span class="ann">@ToString</span>
-<span class="kw">public class</span> <span class="type">NotificationEvent</span> <span class="kw">implements</span> <span class="type">Serializable</span> {
+<span class="kw">public class</span> <span class="typ">NotificationEvent</span> <span class="kw">implements</span> <span class="typ">Serializable</span> {
 
-    <span class="kw">private</span> <span class="type">Long</span> notificationId;     <span class="cmt">// DB primary key — consumer fetches full data</span>
-    <span class="kw">private</span> <span class="type">String</span> eventType;        <span class="cmt">// "SEND" or "RETRY"</span>
-    <span class="kw">private</span> <span class="type">LocalDateTime</span> timestamp; <span class="cmt">// When the event was created</span>
+    <span class="kw">private</span> <span class="typ">Long</span> notificationId;       <span class="cmt">// DB primary key — consumer fetches full entity</span>
+    <span class="kw">private</span> <span class="typ">String</span> eventType;          <span class="cmt">// "SEND" or "RETRY"</span>
+    <span class="kw">private</span> <span class="typ">LocalDateTime</span> timestamp;   <span class="cmt">// When the event was created</span>
 
-    <span class="cmt">// Factory methods for clean creation</span>
-    <span class="kw">public static</span> <span class="type">NotificationEvent</span> <span class="method">ofSend</span>(<span class="type">Long</span> notificationId) {
-        <span class="kw">return</span> <span class="type">NotificationEvent</span>.<span class="method">builder</span>()
-                .<span class="method">notificationId</span>(notificationId)
-                .<span class="method">eventType</span>(<span class="str">"SEND"</span>)
-                .<span class="method">timestamp</span>(<span class="type">LocalDateTime</span>.<span class="method">now</span>())
-                .<span class="method">build</span>();
+    <span class="cmt">// Factory method: create a SEND event</span>
+    <span class="kw">public static</span> <span class="typ">NotificationEvent</span> <span class="fn">ofSend</span>(<span class="typ">Long</span> notificationId) {
+        <span class="kw">return</span> <span class="typ">NotificationEvent</span>.builder()
+                .notificationId(notificationId)
+                .eventType(<span class="str">"SEND"</span>)
+                .timestamp(LocalDateTime.now())
+                .build();
     }
 
-    <span class="kw">public static</span> <span class="type">NotificationEvent</span> <span class="method">ofRetry</span>(<span class="type">Long</span> notificationId) { <span class="cmt">/* same pattern */</span> }
+    <span class="cmt">// Factory method: create a RETRY event</span>
+    <span class="kw">public static</span> <span class="typ">NotificationEvent</span> <span class="fn">ofRetry</span>(<span class="typ">Long</span> notificationId) {
+        <span class="kw">return</span> <span class="typ">NotificationEvent</span>.builder()
+                .notificationId(notificationId)
+                .eventType(<span class="str">"RETRY"</span>)
+                .timestamp(LocalDateTime.now())
+                .build();
+    }
 }</div>
 
-        <div class="info-blue">
-            <strong>Why only the ID?</strong> Sending the full notification entity over Kafka is an anti-pattern.
-            The DB is the source of truth. If the notification is updated between publish and consume
-            (e.g., user cancels it), the consumer always sees the latest state by fetching from DB.
-        </div>
+    <div class="alert alert-blue">
+        <strong>Why only the ID — not the full notification?</strong><br>
+        Sending the full entity over Kafka is an anti-pattern. The DB is the source of truth.
+        If the notification is updated between publish and consume (e.g., user cancels it),
+        the consumer always sees the <strong>latest state</strong> by fetching from DB.
+        It also keeps Kafka messages tiny (~100 bytes) — enabling higher throughput.
     </div>
 
-    <!-- ========== 5. KAFKA CONFIG ========== -->
-    <div class="section">
-        <div class="section-title"><span class="icon">&#x2699;</span> Step 2: Kafka Configuration — KafkaConfig.java</div>
+    <div class="diagram">
+<span class="diagram-title" style="color:#38bdf8;">KAFKA MESSAGE FORMAT (JSON)</span>
 
-        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 12px;">
-            The configuration class creates topics, configures the producer and consumer factories,
-            and sets up the Dead Letter Topic error handler. Every setting is explained below.
-        </p>
+  Key:   <span style="color:#fde047;">"42"</span>                          <span style="color:#64748b;">← String(notificationId)</span>
+  Value: <span style="color:#86efac;">{</span>                             <span style="color:#64748b;">← JSON serialized NotificationEvent</span>
+           <span style="color:#7dd3fc;">"notificationId"</span>: <span style="color:#fbbf24;">42</span>,
+           <span style="color:#7dd3fc;">"eventType"</span>: <span style="color:#86efac;">"SEND"</span>,
+           <span style="color:#7dd3fc;">"timestamp"</span>: <span style="color:#86efac;">"2026-03-18T19:00:00"</span>
+         <span style="color:#86efac;">}</span>
 
-        <h3 style="font-size: 15px; color: #f8fafc; margin-bottom: 12px;">Topic Creation</h3>
+  <span style="color:#64748b;">Total message size: ~90 bytes</span>
+  <span style="color:#64748b;">Compare: Full Notification entity would be ~2KB (20x larger)</span></div>
+</div>
 
-        <div class="code-block"><div class="file-tag">KafkaConfig.java — Topics</div>
+<!-- ═══════════════ 6. KAFKA CONFIG ═══════════════ -->
+<div class="section" id="config">
+    <div class="section-title"><span class="section-num">6</span> Kafka Configuration &mdash; KafkaConfig.java</div>
+
+    <p>The configuration class creates topics, configures producer and consumer factories,
+       and sets up the Dead Letter Topic error handler.</p>
+
+    <div class="section-subtitle">Topic Creation</div>
+
+    <div class="code-block"><div class="file-tag">KafkaConfig.java — Topics</div>
 <span class="ann">@Bean</span>
-<span class="kw">public</span> <span class="type">NewTopic</span> <span class="method">notificationSendTopic</span>() {
-    <span class="kw">return</span> <span class="type">TopicBuilder</span>.<span class="method">name</span>(<span class="str">"notification-send"</span>)
-            .<span class="method">partitions</span>(<span class="num">3</span>)    <span class="cmt">// 3 partitions for parallel consumption</span>
-            .<span class="method">replicas</span>(<span class="num">1</span>)      <span class="cmt">// 1 replica (increase in production)</span>
-            .<span class="method">build</span>();
+<span class="kw">public</span> <span class="typ">NewTopic</span> <span class="fn">notificationSendTopic</span>() {
+    <span class="kw">return</span> <span class="typ">TopicBuilder</span>.<span class="fn">name</span>(<span class="str">"notification-send"</span>)
+            .<span class="fn">partitions</span>(<span class="num">3</span>)     <span class="cmt">// 3 partitions → 3 parallel consumers</span>
+            .<span class="fn">replicas</span>(<span class="num">1</span>)       <span class="cmt">// 1 replica (increase in production cluster)</span>
+            .<span class="fn">build</span>();
 }
 
 <span class="ann">@Bean</span>
-<span class="kw">public</span> <span class="type">NewTopic</span> <span class="method">notificationRetryTopic</span>() {
-    <span class="kw">return</span> <span class="type">TopicBuilder</span>.<span class="method">name</span>(<span class="str">"notification-retry"</span>)
-            .<span class="method">partitions</span>(<span class="num">3</span>)
-            .<span class="method">replicas</span>(<span class="num">1</span>)
-            .<span class="method">build</span>();
+<span class="kw">public</span> <span class="typ">NewTopic</span> <span class="fn">notificationRetryTopic</span>() {
+    <span class="kw">return</span> <span class="typ">TopicBuilder</span>.<span class="fn">name</span>(<span class="str">"notification-retry"</span>)
+            .<span class="fn">partitions</span>(<span class="num">3</span>).<span class="fn">replicas</span>(<span class="num">1</span>).<span class="fn">build</span>();
 }
 
-<span class="cmt">// Dead Letter Topics (1 partition each — low volume)</span>
+<span class="cmt">// Dead Letter Topics — 1 partition each (low volume error queues)</span>
 <span class="ann">@Bean</span>
-<span class="kw">public</span> <span class="type">NewTopic</span> <span class="method">notificationSendDltTopic</span>() {
-    <span class="kw">return</span> <span class="type">TopicBuilder</span>.<span class="method">name</span>(<span class="str">"notification-send.DLT"</span>).<span class="method">partitions</span>(<span class="num">1</span>).<span class="method">replicas</span>(<span class="num">1</span>).<span class="method">build</span>();
+<span class="kw">public</span> <span class="typ">NewTopic</span> <span class="fn">notificationSendDltTopic</span>() {
+    <span class="kw">return</span> <span class="typ">TopicBuilder</span>.<span class="fn">name</span>(<span class="str">"notification-send.DLT"</span>).<span class="fn">partitions</span>(<span class="num">1</span>).<span class="fn">replicas</span>(<span class="num">1</span>).<span class="fn">build</span>();
+}
+
+<span class="ann">@Bean</span>
+<span class="kw">public</span> <span class="typ">NewTopic</span> <span class="fn">notificationRetryDltTopic</span>() {
+    <span class="kw">return</span> <span class="typ">TopicBuilder</span>.<span class="fn">name</span>(<span class="str">"notification-retry.DLT"</span>).<span class="fn">partitions</span>(<span class="num">1</span>).<span class="fn">replicas</span>(<span class="num">1</span>).<span class="fn">build</span>();
 }</div>
 
-        <div class="info-yellow">
-            <strong>Why 3 partitions?</strong> Each partition can be consumed by one consumer thread.
-            With <code>concurrency=3</code>, we have 3 consumer threads, each assigned to 1 partition.
-            This gives us 3x parallel processing. Increase partitions to scale further.
-        </div>
+    <div class="section-subtitle">Producer Configuration</div>
 
-        <h3 style="font-size: 15px; color: #f8fafc; margin: 24px 0 12px;">Producer Configuration</h3>
-
-        <div class="code-block"><div class="file-tag">KafkaConfig.java — Producer</div>
+    <div class="code-block"><div class="file-tag">KafkaConfig.java — Producer Factory</div>
 <span class="ann">@Bean</span>
-<span class="kw">public</span> <span class="type">ProducerFactory</span>&lt;<span class="type">String</span>, <span class="type">NotificationEvent</span>&gt; <span class="method">producerFactory</span>() {
-    <span class="type">Map</span>&lt;<span class="type">String</span>, <span class="type">Object</span>&gt; props = <span class="kw">new</span> <span class="type">HashMap</span>&lt;&gt;();
-    props.<span class="method">put</span>(BOOTSTRAP_SERVERS_CONFIG, <span class="str">"localhost:9092"</span>);
-    props.<span class="method">put</span>(KEY_SERIALIZER_CLASS_CONFIG, <span class="type">StringSerializer</span>.<span class="kw">class</span>);
-    props.<span class="method">put</span>(VALUE_SERIALIZER_CLASS_CONFIG, <span class="type">JsonSerializer</span>.<span class="kw">class</span>);    <span class="cmt">// Serialize event as JSON</span>
-    props.<span class="method">put</span>(ACKS_CONFIG, <span class="str">"all"</span>);                <span class="cmt">// Wait for all replicas to ACK</span>
-    props.<span class="method">put</span>(RETRIES_CONFIG, <span class="num">3</span>);                  <span class="cmt">// Retry on transient errors</span>
-    props.<span class="method">put</span>(ENABLE_IDEMPOTENCE_CONFIG, <span class="kw">true</span>);    <span class="cmt">// Prevent duplicate messages</span>
-    <span class="kw">return new</span> <span class="type">DefaultKafkaProducerFactory</span>&lt;&gt;(props);
+<span class="kw">public</span> <span class="typ">ProducerFactory</span>&lt;<span class="typ">String</span>, <span class="typ">NotificationEvent</span>&gt; <span class="fn">producerFactory</span>() {
+    <span class="typ">Map</span>&lt;<span class="typ">String</span>, <span class="typ">Object</span>&gt; props = <span class="kw">new</span> <span class="typ">HashMap</span>&lt;&gt;();
+    props.put(BOOTSTRAP_SERVERS_CONFIG, <span class="str">"localhost:9092"</span>);
+    props.put(KEY_SERIALIZER_CLASS_CONFIG,   <span class="typ">StringSerializer</span>.<span class="kw">class</span>);
+    props.put(VALUE_SERIALIZER_CLASS_CONFIG, <span class="typ">JsonSerializer</span>.<span class="kw">class</span>);   <span class="cmt">// Serialize as JSON</span>
+    props.put(ACKS_CONFIG, <span class="str">"all"</span>);                 <span class="cmt">// All replicas must ACK</span>
+    props.put(RETRIES_CONFIG, <span class="num">3</span>);                  <span class="cmt">// Retry transient errors</span>
+    props.put(ENABLE_IDEMPOTENCE_CONFIG, <span class="kw">true</span>);   <span class="cmt">// Prevent duplicates</span>
+    <span class="kw">return new</span> <span class="typ">DefaultKafkaProducerFactory</span>&lt;&gt;(props);
 }</div>
 
-        <table class="scenario-table">
-            <thead><tr><th>Setting</th><th>Value</th><th>Why</th></tr></thead>
-            <tbody>
-                <tr><td><code>acks=all</code></td><td>All replicas acknowledge</td><td>Ensures no message loss — highest durability</td></tr>
-                <tr><td><code>retries=3</code></td><td>3 retries</td><td>Handles transient network errors transparently</td></tr>
-                <tr><td><code>idempotence=true</code></td><td>Exactly-once semantics</td><td>Prevents duplicate messages during retries</td></tr>
-                <tr><td><code>JsonSerializer</code></td><td>JSON encoding</td><td>Human-readable messages, easy debugging with kafka-console-consumer</td></tr>
-            </tbody>
-        </table>
+    <table class="tbl">
+        <thead><tr><th>Producer Setting</th><th>Value</th><th>Why It Matters</th></tr></thead>
+        <tbody>
+            <tr><td><code>acks = all</code></td><td>All replicas acknowledge</td><td class="cell-good">Highest durability — no message loss</td></tr>
+            <tr><td><code>retries = 3</code></td><td>3 automatic retries</td><td>Handles transient network/broker errors</td></tr>
+            <tr><td><code>idempotence = true</code></td><td>Exactly-once semantics</td><td class="cell-good">No duplicate messages during retries</td></tr>
+            <tr><td><code>JsonSerializer</code></td><td>JSON value encoding</td><td>Human-readable, easy to debug with kafka-console-consumer</td></tr>
+        </tbody>
+    </table>
 
-        <h3 style="font-size: 15px; color: #f8fafc; margin: 24px 0 12px;">Consumer Configuration</h3>
+    <div class="section-subtitle">Consumer Configuration</div>
 
-        <div class="code-block"><div class="file-tag">KafkaConfig.java — Consumer</div>
+    <div class="code-block"><div class="file-tag">KafkaConfig.java — Consumer Factory</div>
 <span class="ann">@Bean</span>
-<span class="kw">public</span> <span class="type">ConsumerFactory</span>&lt;<span class="type">String</span>, <span class="type">NotificationEvent</span>&gt; <span class="method">consumerFactory</span>() {
-    <span class="type">Map</span>&lt;<span class="type">String</span>, <span class="type">Object</span>&gt; props = <span class="kw">new</span> <span class="type">HashMap</span>&lt;&gt;();
-    props.<span class="method">put</span>(BOOTSTRAP_SERVERS_CONFIG, <span class="str">"localhost:9092"</span>);
-    props.<span class="method">put</span>(GROUP_ID_CONFIG, <span class="str">"notification-group"</span>);          <span class="cmt">// Consumer group name</span>
-    props.<span class="method">put</span>(KEY_DESERIALIZER_CLASS_CONFIG, <span class="type">StringDeserializer</span>.<span class="kw">class</span>);
-    props.<span class="method">put</span>(VALUE_DESERIALIZER_CLASS_CONFIG, <span class="type">JsonDeserializer</span>.<span class="kw">class</span>);
-    props.<span class="method">put</span>(AUTO_OFFSET_RESET_CONFIG, <span class="str">"earliest"</span>);           <span class="cmt">// Start from beginning if no offset</span>
-    props.<span class="method">put</span>(ENABLE_AUTO_COMMIT_CONFIG, <span class="kw">false</span>);                <span class="cmt">// Manual ACK for reliability</span>
-    props.<span class="method">put</span>(TRUSTED_PACKAGES, <span class="str">"com.notification.event"</span>);     <span class="cmt">// Trusted deserialization packages</span>
-    <span class="kw">return new</span> <span class="type">DefaultKafkaConsumerFactory</span>&lt;&gt;(props);
+<span class="kw">public</span> <span class="typ">ConsumerFactory</span>&lt;<span class="typ">String</span>, <span class="typ">NotificationEvent</span>&gt; <span class="fn">consumerFactory</span>() {
+    <span class="typ">Map</span>&lt;<span class="typ">String</span>, <span class="typ">Object</span>&gt; props = <span class="kw">new</span> <span class="typ">HashMap</span>&lt;&gt;();
+    props.put(BOOTSTRAP_SERVERS_CONFIG, <span class="str">"localhost:9092"</span>);
+    props.put(GROUP_ID_CONFIG, <span class="str">"notification-group"</span>);
+    props.put(KEY_DESERIALIZER_CLASS_CONFIG,   <span class="typ">StringDeserializer</span>.<span class="kw">class</span>);
+    props.put(VALUE_DESERIALIZER_CLASS_CONFIG, <span class="typ">JsonDeserializer</span>.<span class="kw">class</span>);
+    props.put(AUTO_OFFSET_RESET_CONFIG, <span class="str">"earliest"</span>);       <span class="cmt">// Start from beginning if new</span>
+    props.put(ENABLE_AUTO_COMMIT_CONFIG, <span class="kw">false</span>);          <span class="cmt">// Manual ACK only</span>
+    props.put(TRUSTED_PACKAGES, <span class="str">"com.notification.event"</span>); <span class="cmt">// Security: trusted packages</span>
+    <span class="kw">return new</span> <span class="typ">DefaultKafkaConsumerFactory</span>&lt;&gt;(props);
 }</div>
 
-        <div class="code-block"><div class="file-tag">KafkaConfig.java — Container Factory with DLT Error Handler</div>
+    <div class="section-subtitle">Listener Container with DLT Error Handler</div>
+
+    <div class="code-block"><div class="file-tag">KafkaConfig.java — Container Factory</div>
 <span class="ann">@Bean</span>
-<span class="kw">public</span> <span class="type">ConcurrentKafkaListenerContainerFactory</span>&lt;...&gt; <span class="method">kafkaListenerContainerFactory</span>() {
-    <span class="type">ConcurrentKafkaListenerContainerFactory</span>&lt;...&gt; factory = <span class="kw">new</span> ...();
-    factory.<span class="method">setConsumerFactory</span>(<span class="method">consumerFactory</span>());
-    factory.<span class="method">setConcurrency</span>(<span class="num">3</span>);                           <span class="cmt">// 3 consumer threads</span>
+<span class="kw">public</span> <span class="typ">ConcurrentKafkaListenerContainerFactory</span>&lt;...&gt; <span class="fn">kafkaListenerContainerFactory</span>() {
+    <span class="typ">ConcurrentKafkaListenerContainerFactory</span>&lt;...&gt; factory = <span class="kw">new</span> ...();
+    factory.<span class="fn">setConsumerFactory</span>(consumerFactory());
+    factory.<span class="fn">setConcurrency</span>(<span class="num">3</span>);                              <span class="cmt">// 3 consumer threads</span>
     factory.getContainerProperties()
-           .<span class="method">setAckMode</span>(AckMode.<span class="var">RECORD</span>);               <span class="cmt">// ACK after each record</span>
+           .<span class="fn">setAckMode</span>(AckMode.<span class="var">RECORD</span>);                  <span class="cmt">// ACK after each record</span>
 
-    <span class="cmt">// Dead Letter Topic error handler:</span>
-    <span class="cmt">// After 3 total attempts (1 original + 2 retries), publish to .DLT topic</span>
-    factory.<span class="method">setCommonErrorHandler</span>(
-        <span class="kw">new</span> <span class="type">DefaultErrorHandler</span>(
-            <span class="kw">new</span> <span class="type">DeadLetterPublishingRecoverer</span>(<span class="method">kafkaTemplate</span>()),
-            <span class="kw">new</span> <span class="type">FixedBackOff</span>(<span class="num">1000L</span>, <span class="num">2</span>)  <span class="cmt">// 2 retries, 1s apart → 3 total attempts</span>
+    <span class="cmt">// ── Dead Letter Topic Error Handler ──</span>
+    <span class="cmt">// After 3 total attempts (1 original + 2 retries at 1s intervals),</span>
+    <span class="cmt">// publish the failed message to the .DLT topic</span>
+    factory.<span class="fn">setCommonErrorHandler</span>(
+        <span class="kw">new</span> <span class="typ">DefaultErrorHandler</span>(
+            <span class="kw">new</span> <span class="typ">DeadLetterPublishingRecoverer</span>(kafkaTemplate()),
+            <span class="kw">new</span> <span class="typ">FixedBackOff</span>(<span class="num">1000L</span>, <span class="num">2</span>)  <span class="cmt">// 2 retries × 1s = 3 total attempts</span>
         )
     );
     <span class="kw">return</span> factory;
 }</div>
 
-        <table class="scenario-table">
-            <thead><tr><th>Consumer Setting</th><th>Value</th><th>Why</th></tr></thead>
-            <tbody>
-                <tr><td><code>group-id</code></td><td><code>notification-group</code></td><td>All consumers in same group share partition load</td></tr>
-                <tr><td><code>concurrency=3</code></td><td>3 threads</td><td>Matches 3 partitions — 1 thread per partition</td></tr>
-                <tr><td><code>auto.offset.reset=earliest</code></td><td>Start from beginning</td><td>New consumer reads all unprocessed messages</td></tr>
-                <tr><td><code>enable.auto.commit=false</code></td><td>Manual ACK</td><td>Only commit offset after successful processing</td></tr>
-                <tr><td><code>AckMode.RECORD</code></td><td>ACK per record</td><td>Each message acknowledged individually after processing</td></tr>
-                <tr><td><code>FixedBackOff(1000, 2)</code></td><td>2 retries, 1s apart</td><td>3 total attempts before sending to DLT</td></tr>
-            </tbody>
-        </table>
-    </div>
+    <table class="tbl">
+        <thead><tr><th>Consumer Setting</th><th>Value</th><th>Why It Matters</th></tr></thead>
+        <tbody>
+            <tr><td><code>group-id</code></td><td><code>notification-group</code></td><td>All consumers in this group share partition load</td></tr>
+            <tr><td><code>concurrency = 3</code></td><td>3 consumer threads</td><td>Matches 3 partitions — 1 thread per partition (optimal)</td></tr>
+            <tr><td><code>auto.offset.reset = earliest</code></td><td>Start from beginning</td><td>New consumers read all unprocessed messages</td></tr>
+            <tr><td><code>enable.auto.commit = false</code></td><td>Manual offset commit</td><td class="cell-good">Only commit offset after successful processing</td></tr>
+            <tr><td><code>AckMode.RECORD</code></td><td>Per-record acknowledgment</td><td>Each message acknowledged individually</td></tr>
+            <tr><td><code>FixedBackOff(1000, 2)</code></td><td>2 retries, 1s apart</td><td>3 total attempts before routing to DLT</td></tr>
+        </tbody>
+    </table>
+</div>
 
-    <!-- ========== 6. PRODUCER CODE ========== -->
-    <div class="section">
-        <div class="section-title"><span class="icon">&#x1F4E4;</span> Step 3: The Producer — NotificationKafkaProducer</div>
+<!-- ═══════════════ 7. PRODUCER ═══════════════ -->
+<div class="section" id="producer">
+    <div class="section-title"><span class="section-num">7</span> The Producer &mdash; NotificationKafkaProducer.java</div>
 
-        <div class="code-block"><div class="file-tag">NotificationKafkaProducer.java</div>
+    <div class="code-block"><div class="file-tag">com/notification/kafka/NotificationKafkaProducer.java</div>
 <span class="ann">@Slf4j</span>
 <span class="ann">@Component</span>
 <span class="ann">@RequiredArgsConstructor</span>
-<span class="kw">public class</span> <span class="type">NotificationKafkaProducer</span> {
+<span class="kw">public class</span> <span class="typ">NotificationKafkaProducer</span> {
 
-    <span class="kw">private final</span> <span class="type">KafkaTemplate</span>&lt;<span class="type">String</span>, <span class="type">NotificationEvent</span>&gt; kafkaTemplate;
+    <span class="kw">private final</span> <span class="typ">KafkaTemplate</span>&lt;<span class="typ">String</span>, <span class="typ">NotificationEvent</span>&gt; kafkaTemplate;
 
     <span class="ann">@Value</span>(<span class="str">"${notification.kafka.topic.send:notification-send}"</span>)
-    <span class="kw">private</span> <span class="type">String</span> sendTopic;
+    <span class="kw">private</span> <span class="typ">String</span> sendTopic;
 
-    <span class="kw">public void</span> <span class="method">sendNotificationEvent</span>(<span class="type">NotificationEvent</span> event) {
-        <span class="type">String</span> key = <span class="type">String</span>.<span class="method">valueOf</span>(event.<span class="method">getNotificationId</span>());
+    <span class="ann">@Value</span>(<span class="str">"${notification.kafka.topic.retry:notification-retry}"</span>)
+    <span class="kw">private</span> <span class="typ">String</span> retryTopic;
 
-        <span class="type">CompletableFuture</span>&lt;<span class="type">SendResult</span>&lt;...&gt;&gt; future =
-                kafkaTemplate.<span class="method">send</span>(sendTopic, key, event);
+    <span class="cmt">// ── Publish to notification-send topic ──</span>
+    <span class="kw">public void</span> <span class="fn">sendNotificationEvent</span>(<span class="typ">NotificationEvent</span> event) {
+        <span class="typ">String</span> key = <span class="typ">String</span>.valueOf(event.getNotificationId());
 
-        future.<span class="method">whenComplete</span>((result, ex) -&gt; {
+        <span class="typ">CompletableFuture</span>&lt;<span class="typ">SendResult</span>&lt;<span class="typ">String</span>, <span class="typ">NotificationEvent</span>&gt;&gt; future =
+                kafkaTemplate.<span class="fn">send</span>(sendTopic, key, event);
+
+        future.<span class="fn">whenComplete</span>((result, ex) -&gt; {
             <span class="kw">if</span> (ex != <span class="kw">null</span>) {
-                log.<span class="method">error</span>(<span class="str">"Failed to publish: {}"</span>, ex.<span class="method">getMessage</span>());
+                log.<span class="fn">error</span>(<span class="str">"Failed to publish [{}] to [{}]: {}"</span>,
+                        event.getNotificationId(), sendTopic, ex.getMessage());
             } <span class="kw">else</span> {
-                log.<span class="method">info</span>(<span class="str">"Published [{}] to partition={}, offset={}"</span>,
-                    event.<span class="method">getNotificationId</span>(),
-                    result.getRecordMetadata().<span class="method">partition</span>(),
-                    result.getRecordMetadata().<span class="method">offset</span>());
+                log.<span class="fn">info</span>(<span class="str">"Published [{}] to [{}] partition={} offset={}"</span>,
+                        event.getNotificationId(), sendTopic,
+                        result.getRecordMetadata().partition(),
+                        result.getRecordMetadata().offset());
             }
         });
     }
+
+    <span class="cmt">// ── Publish to notification-retry topic ──</span>
+    <span class="kw">public void</span> <span class="fn">sendRetryEvent</span>(<span class="typ">NotificationEvent</span> event) {
+        <span class="typ">String</span> key = <span class="typ">String</span>.valueOf(event.getNotificationId());
+        kafkaTemplate.<span class="fn">send</span>(retryTopic, key, event)
+            .<span class="fn">whenComplete</span>((result, ex) -&gt; {
+                <span class="kw">if</span> (ex != <span class="kw">null</span>)
+                    log.<span class="fn">error</span>(<span class="str">"Failed to publish retry [{}]: {}"</span>,
+                            event.getNotificationId(), ex.getMessage());
+                <span class="kw">else</span>
+                    log.<span class="fn">info</span>(<span class="str">"Published retry [{}] to [{}] p={} o={}"</span>,
+                            event.getNotificationId(), retryTopic,
+                            result.getRecordMetadata().partition(),
+                            result.getRecordMetadata().offset());
+            });
+    }
 }</div>
 
-        <div class="info-green">
-            <strong>Key design decisions:</strong><br>
-            - <strong>Async publish with callback</strong> — <code>send()</code> returns a <code>CompletableFuture</code>; we don't block the HTTP thread waiting for Kafka ACK.<br>
-            - <strong>Notification ID as key</strong> — Kafka hashes the key to determine the partition. Same notification ID always goes to the same partition, preserving order for that notification.<br>
-            - <strong>Callback logging</strong> — <code>whenComplete()</code> logs the partition and offset for observability.
-        </div>
+    <div class="alert alert-green">
+        <strong>Design Decisions:</strong><br>
+        &bull; <strong>Async publish with callback</strong> — <code>send()</code> returns a <code>CompletableFuture</code>; HTTP thread is never blocked waiting for Kafka ACK.<br>
+        &bull; <strong>Notification ID as key</strong> — Kafka hashes the key to determine the partition. Same ID → same partition → ordering preserved for that notification.<br>
+        &bull; <strong>Callback logging</strong> — <code>whenComplete()</code> logs partition and offset for observability and debugging.
     </div>
+</div>
 
-    <!-- ========== 7. CONSUMER CODE ========== -->
-    <div class="section">
-        <div class="section-title"><span class="icon">&#x1F4E5;</span> Step 4: The Consumer — NotificationKafkaConsumer</div>
+<!-- ═══════════════ 8. CONSUMER ═══════════════ -->
+<div class="section" id="consumer">
+    <div class="section-title"><span class="section-num">8</span> The Consumer &mdash; NotificationKafkaConsumer.java</div>
 
-        <div class="code-block"><div class="file-tag">NotificationKafkaConsumer.java</div>
+    <div class="code-block"><div class="file-tag">com/notification/kafka/NotificationKafkaConsumer.java</div>
 <span class="ann">@Slf4j</span>
 <span class="ann">@Component</span>
 <span class="ann">@RequiredArgsConstructor</span>
-<span class="kw">public class</span> <span class="type">NotificationKafkaConsumer</span> {
+<span class="kw">public class</span> <span class="typ">NotificationKafkaConsumer</span> {
 
-    <span class="kw">private final</span> <span class="type">NotificationRepository</span> notificationRepository;
-    <span class="kw">private final</span> <span class="type">NotificationProcessingService</span> processingService;
-    <span class="kw">private final</span> <span class="type">RetryService</span> retryService;
+    <span class="kw">private final</span> <span class="typ">NotificationRepository</span> notificationRepository;
+    <span class="kw">private final</span> <span class="typ">NotificationProcessingService</span> processingService;
+    <span class="kw">private final</span> <span class="typ">RetryService</span> retryService;
 
-    <span class="cmt">// ==================== MAIN SEND TOPIC ====================</span>
+    <span class="cmt">// ══════════════════ MAIN SEND LISTENER ══════════════════</span>
     <span class="ann">@KafkaListener</span>(
         topics = <span class="str">"${notification.kafka.topic.send:notification-send}"</span>,
         groupId = <span class="str">"${notification.kafka.consumer.group-id:notification-group}"</span>,
         containerFactory = <span class="str">"kafkaListenerContainerFactory"</span>
     )
-    <span class="kw">public void</span> <span class="method">consumeSendEvent</span>(<span class="type">NotificationEvent</span> event) {
-        log.<span class="method">info</span>(<span class="str">"Consumed SEND event for notification [{}]"</span>, event.<span class="method">getNotificationId</span>());
+    <span class="kw">public void</span> <span class="fn">consumeSendEvent</span>(<span class="typ">NotificationEvent</span> event) {
+        log.info(<span class="str">"Consumed SEND event for notification [{}]"</span>,
+                event.getNotificationId());
 
-        <span class="type">Notification</span> notification = notificationRepository
-                .<span class="method">findById</span>(event.<span class="method">getNotificationId</span>())
-                .<span class="method">orElseThrow</span>(() -&gt; <span class="kw">new</span> <span class="type">RuntimeException</span>(<span class="str">"Not found: "</span> + event.<span class="method">getNotificationId</span>()));
+        <span class="typ">Notification</span> notification = notificationRepository
+                .findById(event.getNotificationId())
+                .orElseThrow(() -&gt; <span class="kw">new</span> <span class="typ">RuntimeException</span>(
+                        <span class="str">"Notification not found: "</span> + event.getNotificationId()));
 
-        processingService.<span class="method">processNotification</span>(notification);
+        processingService.<span class="fn">processNotification</span>(notification);
     }
 
-    <span class="cmt">// ==================== RETRY TOPIC ====================</span>
-    <span class="ann">@KafkaListener</span>(topics = <span class="str">"${notification.kafka.topic.retry:notification-retry}"</span>, ...)
-    <span class="kw">public void</span> <span class="method">consumeRetryEvent</span>(<span class="type">NotificationEvent</span> event) {
-        <span class="type">Notification</span> notification = notificationRepository.<span class="method">findById</span>(...).<span class="method">orElseThrow</span>(...);
-        retryService.<span class="method">executeRetry</span>(notification);
+    <span class="cmt">// ══════════════════ RETRY LISTENER ══════════════════</span>
+    <span class="ann">@KafkaListener</span>(
+        topics = <span class="str">"${notification.kafka.topic.retry:notification-retry}"</span>,
+        groupId = <span class="str">"${notification.kafka.consumer.group-id:notification-group}"</span>,
+        containerFactory = <span class="str">"kafkaListenerContainerFactory"</span>
+    )
+    <span class="kw">public void</span> <span class="fn">consumeRetryEvent</span>(<span class="typ">NotificationEvent</span> event) {
+        log.info(<span class="str">"Consumed RETRY event for notification [{}]"</span>,
+                event.getNotificationId());
+
+        <span class="typ">Notification</span> notification = notificationRepository
+                .findById(event.getNotificationId())
+                .orElseThrow(() -&gt; <span class="kw">new</span> <span class="typ">RuntimeException</span>(
+                        <span class="str">"Notification not found: "</span> + event.getNotificationId()));
+
+        retryService.<span class="fn">executeRetry</span>(notification);
     }
 
-    <span class="cmt">// ==================== DEAD LETTER TOPICS ====================</span>
-    <span class="ann">@KafkaListener</span>(topics = <span class="str">"notification-send.DLT"</span>, groupId = <span class="str">"notification-group-dlt"</span>)
-    <span class="kw">public void</span> <span class="method">consumeSendDlt</span>(<span class="type">NotificationEvent</span> event) {
-        log.<span class="method">error</span>(<span class="str">"DLT: Notification [{}] failed all Kafka attempts. Manual intervention required."</span>,
-                event.<span class="method">getNotificationId</span>());
+    <span class="cmt">// ══════════════════ DEAD LETTER LISTENERS ══════════════════</span>
+    <span class="ann">@KafkaListener</span>(topics = <span class="str">"notification-send.DLT"</span>,
+                  groupId = <span class="str">"notification-group-dlt"</span>)
+    <span class="kw">public void</span> <span class="fn">consumeSendDlt</span>(<span class="typ">NotificationEvent</span> event) {
+        log.error(<span class="str">"DLT: Notification [{}] failed all Kafka retry attempts. "</span> +
+                  <span class="str">"Manual intervention required."</span>, event.getNotificationId());
     }
 
-    <span class="ann">@KafkaListener</span>(topics = <span class="str">"notification-retry.DLT"</span>, groupId = <span class="str">"notification-group-dlt"</span>)
-    <span class="kw">public void</span> <span class="method">consumeRetryDlt</span>(<span class="type">NotificationEvent</span> event) {
-        log.<span class="method">error</span>(<span class="str">"DLT: Retry for notification [{}] failed all attempts."</span>,
-                event.<span class="method">getNotificationId</span>());
+    <span class="ann">@KafkaListener</span>(topics = <span class="str">"notification-retry.DLT"</span>,
+                  groupId = <span class="str">"notification-group-dlt"</span>)
+    <span class="kw">public void</span> <span class="fn">consumeRetryDlt</span>(<span class="typ">NotificationEvent</span> event) {
+        log.error(<span class="str">"DLT: Retry for notification [{}] permanently failed."</span>,
+                  event.getNotificationId());
     }
 }</div>
 
-        <div class="info-yellow">
-            <strong>Consumer error handling flow:</strong><br>
-            1. Consumer calls <code>processNotification()</code> — if it throws an exception...<br>
-            2. <code>DefaultErrorHandler</code> catches it and retries 2 more times (1 second apart)<br>
-            3. If all 3 attempts fail, <code>DeadLetterPublishingRecoverer</code> publishes the message to <code>.DLT</code> topic<br>
-            4. The DLT consumer logs the error for manual investigation<br>
-            5. The offset is committed — the consumer moves on to the next message
+    <div class="alert alert-yellow">
+        <strong>Consumer error handling flow:</strong><br>
+        1. Consumer calls <code>processNotification()</code> — if it throws...<br>
+        2. <code>DefaultErrorHandler</code> catches the exception and retries 2 more times (1s apart)<br>
+        3. After 3 total failures → <code>DeadLetterPublishingRecoverer</code> routes the message to <code>.DLT</code> topic<br>
+        4. DLT consumer logs the error for manual investigation<br>
+        5. Offset committed — consumer moves on to the next message (no blocking)
+    </div>
+</div>
+
+<!-- ═══════════════ 9. SERVICE CHANGES ═══════════════ -->
+<div class="section" id="service">
+    <div class="section-title"><span class="section-num">9</span> Service Layer Changes &mdash; NotificationService.java</div>
+
+    <p>The key change: replace the direct <code>@Async</code> method call with a Kafka event publish.</p>
+
+    <div class="grid-2">
+        <div class="card card-red">
+            <div class="card-label card-label-red">&#x274C; Before — Direct @Async Call</div>
+            <div class="code-block" style="margin: 8px 0 0; padding: 16px 20px; border-radius: 10px;">
+<span class="cmt">// NotificationService.java (BEFORE)</span>
+
+<span class="kw">private final</span> <span class="typ">NotificationProcessingService</span> processingService;
+
+notification = notificationRepository.<span class="fn">save</span>(notification);
+
+<span class="cmt">// Direct in-process async call — same JVM</span>
+processingService.<span style="color:#f87171; font-weight:700;">processNotificationAsync</span>(notification);
+
+<span class="kw">return</span> <span class="typ">NotificationResponse</span>.<span class="fn">fromEntity</span>(notification);</div>
+        </div>
+        <div class="card card-green">
+            <div class="card-label card-label-green">&#x2705; After — Kafka Event Publish</div>
+            <div class="code-block" style="margin: 8px 0 0; padding: 16px 20px; border-radius: 10px;">
+<span class="cmt">// NotificationService.java (AFTER)</span>
+
+<span class="kw">private final</span> <span class="typ">NotificationKafkaProducer</span> kafkaProducer;
+
+notification = notificationRepository.<span class="fn">save</span>(notification);
+
+<span class="cmt">// Publish lightweight event to Kafka — fully decoupled</span>
+kafkaProducer.<span style="color:#4ade80; font-weight:700;">sendNotificationEvent</span>(
+    <span class="typ">NotificationEvent</span>.<span class="fn">ofSend</span>(notification.<span class="fn">getId</span>()));
+
+<span class="kw">return</span> <span class="typ">NotificationResponse</span>.<span class="fn">fromEntity</span>(notification);</div>
         </div>
     </div>
 
-    <!-- ========== 8. SERVICE CHANGES ========== -->
-    <div class="section">
-        <div class="section-title"><span class="icon">&#x1F504;</span> Step 5: Service Layer Changes</div>
+    <div class="alert alert-green" style="margin-top: 24px;">
+        <strong>What exactly changed:</strong><br>
+        &bull; <code>processingService</code> dependency <strong>removed</strong> from <code>NotificationService</code><br>
+        &bull; <code>kafkaProducer</code> dependency <strong>added</strong> to <code>NotificationService</code><br>
+        &bull; Both <code>sendNotification()</code> and <code>sendBulkNotifications()</code> now publish to Kafka<br>
+        &bull; The <code>NotificationKafkaConsumer</code> (on the other side of Kafka) calls <code>processingService.processNotification()</code><br>
+        &bull; <code>NotificationServiceTest</code> updated: mocks <code>kafkaProducer</code> instead of <code>processingService</code>
+    </div>
+</div>
 
-        <h3 style="font-size: 15px; color: #f8fafc; margin-bottom: 12px;">NotificationService.java — Publish to Kafka</h3>
+<!-- ═══════════════ 10. DLT DEEP DIVE ═══════════════ -->
+<div class="section" id="dlt">
+    <div class="section-title"><span class="section-num">10</span> Dead Letter Topics &mdash; Handling Permanent Failures</div>
 
-        <div class="two-col">
-            <div class="col-card col-before">
-                <div style="font-size: 11px; font-weight: 700; color: #f87171; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Before (Direct @Async)</div>
-                <div class="code-block" style="margin: 0; padding: 14px 18px;">
-notification = notificationRepository.<span class="method">save</span>(notification);
+    <p>A Dead Letter Topic (DLT) is a special Kafka topic where messages that fail all processing attempts are automatically routed.
+       Instead of losing the message or blocking the consumer, it is safely parked for later investigation.</p>
 
-<span class="cmt">// Direct in-process async call</span>
-processingService.<span class="danger">processNotificationAsync</span>(notification);
+    <div class="diagram">
+<span class="diagram-title" style="color:#f87171;">DLT LIFECYCLE — FROM FAILURE TO RESOLUTION</span>
 
-<span class="kw">return</span> <span class="type">NotificationResponse</span>.<span class="method">fromEntity</span>(notification);</div>
-            </div>
-            <div class="col-card col-after">
-                <div style="font-size: 11px; font-weight: 700; color: #4ade80; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">After (Kafka Publish)</div>
-                <div class="code-block" style="margin: 0; padding: 14px 18px;">
-notification = notificationRepository.<span class="method">save</span>(notification);
+  ┌──────────────┐         ┌──────────────────┐        ┌───────────────────┐
+  │ notification  │  fail   │  DefaultError     │  fail  │  DeadLetter       │
+  │ -send topic   │ ──────▶│  Handler          │ ─────▶│  Publishing       │
+  │               │  ×3    │                   │  all   │  Recoverer        │
+  │  [message]    │        │  Retry 1 (1s)     │       │                   │
+  │               │        │  Retry 2 (1s)     │       │  Publishes to:    │
+  └──────────────┘        │  Retry 3 (final)  │       │  notification     │
+                           └──────────────────┘        │  -send.DLT       │
+                                                        └────────┬──────────┘
+                                                                 │
+                                                                 ▼
+                                                        ┌───────────────────┐
+                                                        │  DLT Consumer      │
+                                                        │  consumeSendDlt()  │
+                                                        │                   │
+                                                        │  Actions:         │
+                                                        │  • Log error      │
+                                                        │  • Alert ops team │
+                                                        │  • Store for      │
+                                                        │    manual review  │
+                                                        └───────────────────┘
 
-<span class="cmt">// Publish event to Kafka — fully decoupled</span>
-kafkaProducer.<span class="highlight">sendNotificationEvent</span>(
-    <span class="type">NotificationEvent</span>.<span class="method">ofSend</span>(notification.<span class="method">getId</span>()));
+  <span style="color:#fbbf24;">Resolution options:</span>
+  1. Fix the root cause, then replay messages from DLT
+  2. Manually update notification status in DB
+  3. Forward to a different processing pipeline</div>
 
-<span class="kw">return</span> <span class="type">NotificationResponse</span>.<span class="method">fromEntity</span>(notification);</div>
+    <div class="grid-2">
+        <div class="card card-purple">
+            <div class="card-label card-label-purple">How DLT is configured</div>
+            <div class="text-sm" style="color: #94a3b8; line-height: 2;">
+                <strong>Error handler:</strong> <code>DefaultErrorHandler</code><br>
+                <strong>Recovery strategy:</strong> <code>DeadLetterPublishingRecoverer</code><br>
+                <strong>Backoff:</strong> <code>FixedBackOff(1000ms, 2 retries)</code><br>
+                <strong>Total attempts:</strong> 3 (1 original + 2 retries)<br>
+                <strong>DLT naming:</strong> <code>{original-topic}.DLT</code> (Spring Kafka convention)
             </div>
         </div>
-
-        <div class="info-green" style="margin-top: 20px;">
-            <strong>What changed:</strong> Instead of directly calling <code>processingService.processNotificationAsync()</code>
-            (which runs in the same JVM's thread pool), we publish a lightweight event to Kafka.
-            The consumer — potentially on a completely different server — picks up the event and processes it.
-            The <code>processingService</code> dependency is removed from <code>NotificationService</code>.
+        <div class="card card-blue">
+            <div class="card-label card-label-blue">When does a message go to DLT?</div>
+            <div class="text-sm" style="color: #94a3b8; line-height: 2;">
+                <strong>Database down:</strong> Cannot fetch notification by ID<br>
+                <strong>Channel handler error:</strong> Email server unreachable × 3<br>
+                <strong>Serialization error:</strong> Corrupted message format<br>
+                <strong>Unknown exception:</strong> Any unhandled RuntimeException<br>
+                <strong>NOT sent to DLT:</strong> Successful processing (obviously)
+            </div>
         </div>
     </div>
+</div>
 
-    <!-- ========== 9. APPLICATION PROPERTIES ========== -->
-    <div class="section">
-        <div class="section-title"><span class="icon">&#x1F4DD;</span> Step 6: Configuration — application.properties</div>
+<!-- ═══════════════ 11. PARTITION STRATEGY ═══════════════ -->
+<div class="section" id="scaling">
+    <div class="section-title"><span class="section-num">11</span> Partition Strategy &amp; Horizontal Scaling</div>
 
-        <div class="code-block"><div class="file-tag">application.properties — Kafka section</div>
-<span class="cmt"># Kafka Configuration</span>
+    <div class="diagram">
+<span class="diagram-title" style="color:#fbbf24;">HOW NOTIFICATION IDS MAP TO PARTITIONS</span>
+
+  Kafka uses: partition = hash(key) % num_partitions
+
+  notificationId = 42  →  hash(<span style="color:#fde047;">"42"</span>) % 3 = <span style="color:#38bdf8;">Partition 0</span>  →  Consumer Thread C-0
+  notificationId = 43  →  hash(<span style="color:#fde047;">"43"</span>) % 3 = <span style="color:#a78bfa;">Partition 1</span>  →  Consumer Thread C-1
+  notificationId = 44  →  hash(<span style="color:#fde047;">"44"</span>) % 3 = <span style="color:#f472b6;">Partition 2</span>  →  Consumer Thread C-2
+  notificationId = 45  →  hash(<span style="color:#fde047;">"45"</span>) % 3 = <span style="color:#38bdf8;">Partition 0</span>  →  Consumer Thread C-0
+  notificationId = 46  →  hash(<span style="color:#fde047;">"46"</span>) % 3 = <span style="color:#a78bfa;">Partition 1</span>  →  Consumer Thread C-1
+
+  ┌───────────────────────────────────────────────────────┐
+  │              notification-send topic                    │
+  │                                                        │
+  │  <span style="color:#38bdf8;">Partition 0</span> ▶  [id:42] [id:45] [id:48] [id:51] ...  │
+  │  <span style="color:#a78bfa;">Partition 1</span> ▶  [id:43] [id:46] [id:49] [id:52] ...  │
+  │  <span style="color:#f472b6;">Partition 2</span> ▶  [id:44] [id:47] [id:50] [id:53] ...  │
+  │                                                        │
+  └───────────────────────────────────────────────────────┘
+
+  <span style="color:#4ade80;">✓ Same notificationId → ALWAYS same partition → ordering preserved</span>
+  <span style="color:#4ade80;">✓ Different notificationIds → spread across partitions → parallel processing</span></div>
+
+    <div class="section-subtitle">Scaling: Adding More Instances</div>
+
+    <div class="diagram">
+<span class="diagram-title" style="color:#38bdf8;">SCALING FROM 1 TO 3 INSTANCES</span>
+
+  <span style="color:#fbbf24;">── 1 Instance (current setup) ──────────────────────────────────</span>
+
+  ┌──────────────────────────────────┐
+  │  Instance 1                      │
+  │  Consumer Group: notification-grp│
+  │                                  │
+  │    Thread C-0  ←  Partition 0    │
+  │    Thread C-1  ←  Partition 1    │
+  │    Thread C-2  ←  Partition 2    │
+  └──────────────────────────────────┘
+  Throughput: ~300 notifications/sec
+
+
+  <span style="color:#fbbf24;">── 2 Instances (just start another app) ────────────────────────</span>
+
+  ┌──────────────────────────┐    ┌──────────────────────────┐
+  │  Instance 1              │    │  Instance 2              │
+  │  notification-grp        │    │  notification-grp        │
+  │                          │    │                          │
+  │    C-0  ←  Partition 0   │    │    C-0  ←  Partition 2   │
+  │    C-1  ←  Partition 1   │    │                          │
+  └──────────────────────────┘    └──────────────────────────┘
+  Kafka <span style="color:#4ade80;">automatically rebalances</span> partitions across instances!
+  Throughput: ~500 notifications/sec
+
+
+  <span style="color:#fbbf24;">── 3 Instances (maximum for 3 partitions) ──────────────────────</span>
+
+  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+  │  Instance 1     │  │  Instance 2     │  │  Instance 3     │
+  │  C-0 ← P0      │  │  C-0 ← P1      │  │  C-0 ← P2      │
+  └─────────────────┘  └─────────────────┘  └─────────────────┘
+  Throughput: ~900 notifications/sec
+
+  <span style="color:#f87171;">⚠ More instances than partitions = idle consumers</span>
+  <span style="color:#f87171;">  To scale beyond 3 → increase partition count first</span></div>
+</div>
+
+<!-- ═══════════════ 12. COMPARISON ═══════════════ -->
+<div class="section" id="comparison">
+    <div class="section-title"><span class="section-num">12</span> Complete Comparison &mdash; @Async vs Kafka</div>
+
+    <table class="tbl">
+        <thead><tr><th>Capability</th><th>@Async Thread Pool</th><th>Kafka Message Queue</th></tr></thead>
+        <tbody>
+            <tr>
+                <td>Message persistence</td>
+                <td class="cell-bad">In-memory only — lost on crash</td>
+                <td class="cell-good">Disk-based — survives broker restarts</td>
+            </tr>
+            <tr>
+                <td>Horizontal scaling</td>
+                <td class="cell-bad">Same JVM only</td>
+                <td class="cell-good">Add instances → Kafka auto-rebalances</td>
+            </tr>
+            <tr>
+                <td>Replay capability</td>
+                <td class="cell-bad">No — task consumed once</td>
+                <td class="cell-good">Yes — reset offset to replay from any point</td>
+            </tr>
+            <tr>
+                <td>Backpressure</td>
+                <td class="cell-bad">CallerRunsPolicy blocks HTTP thread</td>
+                <td class="cell-good">Consumers pull at their own pace</td>
+            </tr>
+            <tr>
+                <td>Dead letter handling</td>
+                <td class="cell-bad">Manual try/catch only</td>
+                <td class="cell-good">Built-in DLT with auto-routing</td>
+            </tr>
+            <tr>
+                <td>Monitoring</td>
+                <td class="cell-bad">JMX thread pool metrics only</td>
+                <td class="cell-good">Consumer lag, partition offsets, group metrics</td>
+            </tr>
+            <tr>
+                <td>Message ordering</td>
+                <td class="cell-bad">No guarantee — thread pool is unordered</td>
+                <td class="cell-good">Per-partition ordering by key</td>
+            </tr>
+            <tr>
+                <td>Decoupling</td>
+                <td class="cell-bad">Producer + consumer in same JVM</td>
+                <td class="cell-good">Fully independent processes</td>
+            </tr>
+            <tr>
+                <td>Infrastructure cost</td>
+                <td class="cell-good">None — built into Spring</td>
+                <td class="cell-warn">Requires Kafka broker (Docker/cloud)</td>
+            </tr>
+            <tr>
+                <td>Complexity</td>
+                <td class="cell-good">Simple — just @Async annotation</td>
+                <td class="cell-warn">Moderate — topics, serializers, config</td>
+            </tr>
+            <tr>
+                <td>Latency</td>
+                <td class="cell-good">~0ms (same JVM call)</td>
+                <td class="cell-warn">~1-5ms (network hop to broker)</td>
+            </tr>
+            <tr>
+                <td>Fault tolerance</td>
+                <td class="cell-bad">App crash = data loss</td>
+                <td class="cell-good">Broker crash = automatic failover with replicas</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- ═══════════════ 13. APPLICATION PROPERTIES ═══════════════ -->
+<div class="section">
+    <div class="section-title"><span class="section-num">13</span> Configuration &mdash; application.properties</div>
+
+    <div class="code-block"><div class="file-tag">application.properties — Kafka section</div>
+<span class="cmt"># ── Kafka Configuration ──</span>
 spring.kafka.bootstrap-servers=<span class="str">localhost:9092</span>
+
+<span class="cmt"># Topic names</span>
 notification.kafka.topic.send=<span class="str">notification-send</span>
 notification.kafka.topic.retry=<span class="str">notification-retry</span>
+
+<span class="cmt"># Consumer settings</span>
 notification.kafka.consumer.group-id=<span class="str">notification-group</span>
 notification.kafka.consumer.concurrency=<span class="num">3</span></div>
 
-        <table class="scenario-table">
-            <thead><tr><th>Property</th><th>Default</th><th>Purpose</th></tr></thead>
-            <tbody>
-                <tr><td><code>bootstrap-servers</code></td><td><code>localhost:9092</code></td><td>Kafka broker address (comma-separated for cluster)</td></tr>
-                <tr><td><code>topic.send</code></td><td><code>notification-send</code></td><td>Topic for new notification events</td></tr>
-                <tr><td><code>topic.retry</code></td><td><code>notification-retry</code></td><td>Topic for retry events</td></tr>
-                <tr><td><code>consumer.group-id</code></td><td><code>notification-group</code></td><td>Consumer group — all instances share work</td></tr>
-                <tr><td><code>consumer.concurrency</code></td><td><code>3</code></td><td>Number of consumer threads per instance</td></tr>
-            </tbody>
-        </table>
-    </div>
+    <table class="tbl">
+        <thead><tr><th>Property</th><th>Default</th><th>Purpose</th></tr></thead>
+        <tbody>
+            <tr><td><code>bootstrap-servers</code></td><td><code>localhost:9092</code></td><td>Kafka broker address (comma-separated for clusters)</td></tr>
+            <tr><td><code>topic.send</code></td><td><code>notification-send</code></td><td>Main topic for new notification events</td></tr>
+            <tr><td><code>topic.retry</code></td><td><code>notification-retry</code></td><td>Topic for retry events</td></tr>
+            <tr><td><code>consumer.group-id</code></td><td><code>notification-group</code></td><td>Consumer group name — all instances share load</td></tr>
+            <tr><td><code>consumer.concurrency</code></td><td><code>3</code></td><td>Consumer threads per instance (match partition count)</td></tr>
+        </tbody>
+    </table>
+</div>
 
-    <!-- ========== 10. PARTITION & KEY STRATEGY ========== -->
-    <div class="section">
-        <div class="section-title"><span class="icon">&#x1F511;</span> Partition &amp; Key Strategy</div>
+<!-- ═══════════════ 14. FILES CHANGED ═══════════════ -->
+<div class="section" id="files">
+    <div class="section-title"><span class="section-num">14</span> Complete File List &mdash; All Changes in This Branch</div>
 
-        <div class="diagram-box">
-    <span style="color:#fbbf24;">How notificationId keys map to partitions:</span>
+    <table class="tbl">
+        <thead><tr><th>File</th><th>Status</th><th>What Changed</th></tr></thead>
+        <tbody>
+            <tr>
+                <td><code>pom.xml</code></td>
+                <td><span class="badge b-mod">Modified</span></td>
+                <td>Added <code>spring-kafka</code> dependency (version managed by Spring Boot 3.2.4 parent)</td>
+            </tr>
+            <tr>
+                <td><code>application.properties</code></td>
+                <td><span class="badge b-mod">Modified</span></td>
+                <td>Added Kafka bootstrap servers, topic names, consumer group, concurrency</td>
+            </tr>
+            <tr>
+                <td><code>NotificationEvent.java</code></td>
+                <td><span class="badge b-new">New</span></td>
+                <td>Kafka message DTO — carries <code>notificationId</code>, <code>eventType</code>, <code>timestamp</code></td>
+            </tr>
+            <tr>
+                <td><code>KafkaConfig.java</code></td>
+                <td><span class="badge b-new">New</span></td>
+                <td>Topic beans, producer factory, consumer factory, DLT error handler</td>
+            </tr>
+            <tr>
+                <td><code>NotificationKafkaProducer.java</code></td>
+                <td><span class="badge b-new">New</span></td>
+                <td>Publishes events to <code>notification-send</code> and <code>notification-retry</code> topics</td>
+            </tr>
+            <tr>
+                <td><code>NotificationKafkaConsumer.java</code></td>
+                <td><span class="badge b-new">New</span></td>
+                <td>4 listeners: send, retry, send-DLT, retry-DLT</td>
+            </tr>
+            <tr>
+                <td><code>NotificationService.java</code></td>
+                <td><span class="badge b-mod">Modified</span></td>
+                <td>Replaced <code>processingService.processNotificationAsync()</code> → <code>kafkaProducer.sendNotificationEvent()</code></td>
+            </tr>
+            <tr>
+                <td><code>NotificationServiceTest.java</code></td>
+                <td><span class="badge b-mod">Modified</span></td>
+                <td>Updated mocks: <code>processingService</code> → <code>kafkaProducer</code></td>
+            </tr>
+            <tr>
+                <td><code>KAFKA_INTEGRATION_DEEP_DIVE.html</code></td>
+                <td><span class="badge b-new">New</span></td>
+                <td>This documentation file</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
 
-    notificationId = 42  → hash(42) % 3 = <span style="color:#38bdf8;">Partition 0</span>  → Consumer Thread C-0
-    notificationId = 43  → hash(43) % 3 = <span style="color:#a78bfa;">Partition 1</span>  → Consumer Thread C-1
-    notificationId = 44  → hash(44) % 3 = <span style="color:#f472b6;">Partition 2</span>  → Consumer Thread C-2
-    notificationId = 45  → hash(45) % 3 = <span style="color:#38bdf8;">Partition 0</span>  → Consumer Thread C-0
-    notificationId = 46  → hash(46) % 3 = <span style="color:#a78bfa;">Partition 1</span>  → Consumer Thread C-1
+<!-- ═══════════════ 15. HOW TO RUN ═══════════════ -->
+<div class="section">
+    <div class="section-title"><span class="section-num">15</span> How to Run Kafka Locally</div>
 
-    <span style="color:#86efac;">✓ Same notificationId → always same partition → ordering preserved</span>
-    <span style="color:#86efac;">✓ Different notificationIds → different partitions → parallel processing</span>
-
-    ┌──────────────────────────────────────────────────┐
-    │           notification-send topic                 │
-    │                                                   │
-    │  <span style="color:#38bdf8;">Partition 0</span>: [id:42] [id:45] [id:48] ...        │
-    │  <span style="color:#a78bfa;">Partition 1</span>: [id:43] [id:46] [id:49] ...        │
-    │  <span style="color:#f472b6;">Partition 2</span>: [id:44] [id:47] [id:50] ...        │
-    │                                                   │
-    │  Consumer Group: notification-group                │
-    │    C-0 ← <span style="color:#38bdf8;">Partition 0</span>                             │
-    │    C-1 ← <span style="color:#a78bfa;">Partition 1</span>                             │
-    │    C-2 ← <span style="color:#f472b6;">Partition 2</span>                             │
-    └──────────────────────────────────────────────────┘</div>
-    </div>
-
-    <!-- ========== 11. SCALING ========== -->
-    <div class="section">
-        <div class="section-title"><span class="icon">&#x1F4C8;</span> Scaling with Kafka</div>
-
-        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 16px;">
-            Kafka's consumer group protocol makes horizontal scaling simple:
-        </p>
-
-        <div class="diagram-box">
-    <span style="color:#fbbf24;">Single Instance (current setup)</span>
-
-    ┌────────────────────────────┐
-    │  Instance 1                │
-    │  Consumer Group: notif-grp │
-    │    C-0 ← Partition 0       │
-    │    C-1 ← Partition 1       │
-    │    C-2 ← Partition 2       │
-    └────────────────────────────┘
-    Throughput: ~300 notifications/sec
-
-
-    <span style="color:#fbbf24;">Two Instances (scale out — just start another app)</span>
-
-    ┌────────────────────────────┐    ┌────────────────────────────┐
-    │  Instance 1                │    │  Instance 2                │
-    │  Consumer Group: notif-grp │    │  Consumer Group: notif-grp │
-    │    C-0 ← Partition 0       │    │    C-0 ← Partition 2       │
-    │    C-1 ← Partition 1       │    │                            │
-    └────────────────────────────┘    └────────────────────────────┘
-    Kafka <span style="color:#86efac;">automatically rebalances</span> partitions across instances!
-    Throughput: ~500 notifications/sec
-
-
-    <span style="color:#fbbf24;">Three Instances (maximum parallelism for 3 partitions)</span>
-
-    ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-    │  Instance 1  │  │  Instance 2  │  │  Instance 3  │
-    │  C-0 ← P0   │  │  C-0 ← P1   │  │  C-0 ← P2   │
-    └──────────────┘  └──────────────┘  └──────────────┘
-    Throughput: ~900 notifications/sec
-
-    <span style="color:#f87171;">Note: More instances than partitions = idle consumers.</span>
-    <span style="color:#f87171;">To scale beyond 3, increase partition count first.</span></div>
-    </div>
-
-    <!-- ========== 12. FILES CHANGED ========== -->
-    <div class="section">
-        <div class="section-title"><span class="icon">&#x1F4C1;</span> Complete File List</div>
-
-        <table class="scenario-table">
-            <thead><tr><th>File</th><th>Type</th><th>Change</th></tr></thead>
-            <tbody>
-                <tr><td><code>pom.xml</code></td><td>Modified</td><td>Added <code>spring-kafka</code> dependency</td></tr>
-                <tr><td><code>application.properties</code></td><td>Modified</td><td>Added Kafka broker, topic, consumer config</td></tr>
-                <tr><td><code>NotificationEvent.java</code></td><td style="color:#86efac;">New</td><td>Kafka message DTO with <code>notificationId</code>, <code>eventType</code>, <code>timestamp</code></td></tr>
-                <tr><td><code>KafkaConfig.java</code></td><td style="color:#86efac;">New</td><td>Topics, producer factory, consumer factory, DLT error handler</td></tr>
-                <tr><td><code>NotificationKafkaProducer.java</code></td><td style="color:#86efac;">New</td><td>Publishes events to <code>notification-send</code> and <code>notification-retry</code> topics</td></tr>
-                <tr><td><code>NotificationKafkaConsumer.java</code></td><td style="color:#86efac;">New</td><td>4 listeners: send, retry, send-DLT, retry-DLT</td></tr>
-                <tr><td><code>NotificationService.java</code></td><td>Modified</td><td>Replaced <code>processingService.processNotificationAsync()</code> with <code>kafkaProducer.sendNotificationEvent()</code></td></tr>
-                <tr><td><code>NotificationServiceTest.java</code></td><td>Modified</td><td>Updated mocks: <code>processingService</code> → <code>kafkaProducer</code></td></tr>
-            </tbody>
-        </table>
-    </div>
-
-    <!-- ========== 13. HOW TO RUN ========== -->
-    <div class="section">
-        <div class="section-title"><span class="icon">&#x1F680;</span> How to Run Kafka Locally</div>
-
-        <div class="flow-step">
-            <div class="flow-num">1</div>
-            <div class="flow-content">
-                <strong>Download and start Apache Kafka</strong><br>
-                <code>Download from https://kafka.apache.org/downloads</code><br>
-                Or use Docker: <code>docker run -p 9092:9092 apache/kafka:3.6.1</code>
-            </div>
-
-            <div class="flow-num">2</div>
-            <div class="flow-content">
-                <strong>Start Zookeeper (if not using KRaft mode)</strong><br>
-                <code>bin/zookeeper-server-start.sh config/zookeeper.properties</code>
-            </div>
-
-            <div class="flow-num">3</div>
-            <div class="flow-content">
-                <strong>Start Kafka Broker</strong><br>
-                <code>bin/kafka-server-start.sh config/server.properties</code>
-            </div>
-
-            <div class="flow-num">4</div>
-            <div class="flow-content">
-                <strong>Start the Spring Boot application</strong><br>
-                <code>mvn spring-boot:run</code><br>
-                Topics are auto-created by Spring Kafka's <code>NewTopic</code> beans.
-            </div>
-
-            <div class="flow-num">5</div>
-            <div class="flow-content">
-                <strong>Monitor topics with console consumer</strong><br>
-                <code>bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic notification-send --from-beginning</code>
-            </div>
+    <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+            <strong>Start Kafka using Docker (simplest approach)</strong><br>
+            <code>docker run -d --name kafka -p 9092:9092 apache/kafka:3.6.1</code>
         </div>
-
-        <div class="info-blue">
-            <strong>Docker Compose (recommended for local dev):</strong> The upcoming Docker step (#5 in our roadmap)
-            will include a <code>docker-compose.yml</code> with Kafka, Zookeeper, and the application pre-configured.
+    </div>
+    <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+            <strong>Start the Spring Boot application</strong><br>
+            <code>mvn spring-boot:run</code><br>
+            Topics are auto-created by the <code>NewTopic</code> beans in <code>KafkaConfig.java</code>.
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+            <strong>Send a test notification</strong><br>
+            <code>POST http://localhost:8080/api/notifications/send</code> with your JSON payload.
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+            <strong>Monitor Kafka topics (optional)</strong><br>
+            <code>docker exec kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic notification-send --from-beginning</code>
         </div>
     </div>
 
-    <!-- ========== 14. COMPARISON ========== -->
-    <div class="section">
-        <div class="section-title"><span class="icon">&#x1F3AF;</span> Complete Comparison: @Async vs Kafka</div>
-
-        <table class="scenario-table">
-            <thead><tr><th>Capability</th><th>@Async Thread Pool</th><th>Kafka Message Queue</th></tr></thead>
-            <tbody>
-                <tr><td>Message persistence</td><td class="danger">In-memory only — lost on crash</td><td class="highlight">Disk-based — survives restarts</td></tr>
-                <tr><td>Horizontal scaling</td><td class="danger">Same JVM only</td><td class="highlight">Add instances, auto-rebalance</td></tr>
-                <tr><td>Replay capability</td><td class="danger">No — task is consumed once</td><td class="highlight">Yes — reset offset to replay</td></tr>
-                <tr><td>Backpressure</td><td class="danger">CallerRunsPolicy blocks HTTP</td><td class="highlight">Consumers pull at their pace</td></tr>
-                <tr><td>Dead letter handling</td><td class="danger">Manual try/catch</td><td class="highlight">Built-in DLT with auto-routing</td></tr>
-                <tr><td>Monitoring</td><td class="danger">JMX only</td><td class="highlight">Kafka lag metrics, consumer groups</td></tr>
-                <tr><td>Ordering</td><td class="danger">No guarantee</td><td class="highlight">Per-partition ordering by key</td></tr>
-                <tr><td>Decoupling</td><td class="danger">Producer + consumer in same JVM</td><td class="highlight">Fully independent processes</td></tr>
-                <tr><td>Infrastructure</td><td class="highlight">None — built into Spring</td><td style="color: #fbbf24;">Requires Kafka broker</td></tr>
-                <tr><td>Complexity</td><td class="highlight">Simple — just @Async annotation</td><td style="color: #fbbf24;">Moderate — topics, serializers, consumers</td></tr>
-                <tr><td>Latency</td><td class="highlight">~0ms (same JVM)</td><td style="color: #fbbf24;">~1-5ms (network hop to broker)</td></tr>
-            </tbody>
-        </table>
+    <div class="alert alert-blue">
+        <strong>Coming next:</strong> The Docker/containerization step (#5 in our roadmap) will include a
+        <code>docker-compose.yml</code> with Kafka, Zookeeper, and the Spring Boot application pre-configured
+        for one-command startup.
     </div>
+</div>
 
-    <!-- ========== REPOS ========== -->
-    <div class="section">
-        <div class="section-title"><span class="icon">&#x1F517;</span> Source Code</div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-            <div style="background: #0f172a; border-radius: 10px; padding: 14px 18px; border: 1px solid #14532d55;">
-                <div style="font-size: 11px; color: #4ade80; text-transform: uppercase; letter-spacing: 0.5px;">Kafka Integration Branch</div>
-                <div style="font-size: 12px; color: #94a3b8; margin-top: 4px; word-break: break-all;">
-                    Branch: <code>release-kafka-integration</code><br>
-                    https://github.com/Ashskyte/Notification-Service-With-Scale.git
-                </div>
+<!-- ═══════════════ 16. BRANCH INFO ═══════════════ -->
+<div class="section">
+    <div class="section-title"><span class="section-num">16</span> Branch &amp; Repository Info</div>
+
+    <div class="grid-2">
+        <div class="card card-green">
+            <div class="card-label card-label-green">Kafka Integration Branch</div>
+            <div class="text-sm" style="color: #94a3b8; line-height: 2;">
+                <strong>Branch:</strong> <code>release-kafka-integration</code><br>
+                <strong>Repo:</strong> https://github.com/Ashskyte/Notification-Service-With-Scale.git<br>
+                <strong>Contains:</strong> All Kafka code + this documentation<br>
+                <strong>Status:</strong> Active development
             </div>
-            <div style="background: #0f172a; border-radius: 10px; padding: 14px 18px; border: 1px solid #7c3aed55;">
-                <div style="font-size: 11px; color: #a78bfa; text-transform: uppercase; letter-spacing: 0.5px;">Main Branch (Async + Retry, no Kafka)</div>
-                <div style="font-size: 12px; color: #94a3b8; margin-top: 4px; word-break: break-all;">
-                    Branch: <code>main</code><br>
-                    https://github.com/Ashskyte/Notification-Service-With-Scale.git
-                </div>
+        </div>
+        <div class="card card-purple">
+            <div class="card-label card-label-purple">Main Branch (Stable)</div>
+            <div class="text-sm" style="color: #94a3b8; line-height: 2;">
+                <strong>Branch:</strong> <code>main</code><br>
+                <strong>Repo:</strong> https://github.com/Ashskyte/Notification-Service-With-Scale.git<br>
+                <strong>Contains:</strong> @Async + Retry (working, no Kafka)<br>
+                <strong>Status:</strong> Stable baseline
             </div>
         </div>
     </div>
+</div>
 
-    <!-- Footer -->
-    <div style="text-align: center; margin-top: 40px; padding-top: 24px; border-top: 1px solid #1e293b; font-size: 12px; color: #475569;">
-        Notification System &bull; Kafka Integration Deep Dive &bull; March 2026
-    </div>
+<!-- ═══════════════ FOOTER ═══════════════ -->
+<div class="footer">
+    Notification System &bull; Kafka Integration Deep Dive &bull;
+    Branch: release-kafka-integration &bull; March 2026
+</div>
 
 </div>
 </body>
