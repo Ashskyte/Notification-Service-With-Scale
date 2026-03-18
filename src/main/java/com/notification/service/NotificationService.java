@@ -3,7 +3,9 @@ package com.notification.service;
 import com.notification.dto.BulkNotificationRequest;
 import com.notification.dto.NotificationResponse;
 import com.notification.dto.SendNotificationRequest;
+import com.notification.event.NotificationEvent;
 import com.notification.exception.NotificationException;
+import com.notification.kafka.NotificationKafkaProducer;
 import com.notification.model.Notification;
 import com.notification.model.User;
 import com.notification.model.enums.NotificationPriority;
@@ -32,7 +34,7 @@ public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final UserService userService;
-    private final NotificationProcessingService processingService;
+    private final NotificationKafkaProducer kafkaProducer;
 
     @Value("${notification.batch.size:100}")
     private int batchSize;
@@ -71,7 +73,7 @@ public class NotificationService {
         }
 
         notification = notificationRepository.save(notification);
-        processingService.processNotificationAsync(notification);
+        kafkaProducer.sendNotificationEvent(NotificationEvent.ofSend(notification.getId()));
         return NotificationResponse.fromEntity(notification);
     }
 
@@ -101,7 +103,7 @@ public class NotificationService {
                             .build();
 
                     notification = notificationRepository.save(notification);
-                    processingService.processNotificationAsync(notification);
+                    kafkaProducer.sendNotificationEvent(NotificationEvent.ofSend(notification.getId()));
                     responses.add(NotificationResponse.fromEntity(notification));
 
                 } catch (Exception e) {
