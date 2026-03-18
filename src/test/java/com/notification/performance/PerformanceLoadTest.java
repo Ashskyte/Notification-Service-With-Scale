@@ -61,7 +61,7 @@ public class PerformanceLoadTest {
     }
 
     @Test
-    @DisplayName("ASYNC - Load Test: Send notifications concurrently and measure performance")
+    @DisplayName("SYNC - Load Test: Send notifications concurrently and measure performance")
     void loadTestSendNotifications() throws InterruptedException {
         ExecutorService executor = Executors.newFixedThreadPool(CONCURRENT_THREADS);
         List<Long> latencies = Collections.synchronizedList(new ArrayList<>());
@@ -70,7 +70,7 @@ public class PerformanceLoadTest {
         int failCount[] = {0};
 
         log.info("==========================================================");
-        log.info("  ASYNC PERFORMANCE LOAD TEST");
+        log.info("  SYNC PERFORMANCE LOAD TEST");
         log.info("  Notifications: {}, Threads: {}, Users: {}",
                 TOTAL_NOTIFICATIONS, CONCURRENT_THREADS, NUM_USERS);
         log.info("  Channel: EMAIL, Simulated Latency: 100ms per send");
@@ -126,7 +126,7 @@ public class PerformanceLoadTest {
         double throughput = (successCount[0] * 1000.0) / totalTimeMs;
 
         log.info("==========================================================");
-        log.info("  ASYNC PERFORMANCE RESULTS");
+        log.info("  SYNC PERFORMANCE RESULTS");
         log.info("==========================================================");
         log.info("  Total notifications sent : {}", successCount[0]);
         log.info("  Failed notifications     : {}", failCount[0]);
