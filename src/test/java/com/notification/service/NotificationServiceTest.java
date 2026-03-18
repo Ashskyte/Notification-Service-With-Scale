@@ -1,6 +1,5 @@
 package com.notification.service;
 
-import com.notification.channel.NotificationChannelHandler;
 import com.notification.dto.NotificationResponse;
 import com.notification.dto.SendNotificationRequest;
 import com.notification.exception.NotificationException;
@@ -33,13 +32,7 @@ class NotificationServiceTest {
     private UserService userService;
 
     @Mock
-    private ChannelResolverService channelResolverService;
-
-    @Mock
-    private RetryService retryService;
-
-    @Mock
-    private NotificationChannelHandler emailHandler;
+    private NotificationProcessingService processingService;
 
     @InjectMocks
     private NotificationService notificationService;
@@ -76,15 +69,12 @@ class NotificationServiceTest {
                     n.setCreatedAt(LocalDateTime.now());
                     return n;
                 });
-        when(channelResolverService.resolve(NotificationChannel.EMAIL)).thenReturn(emailHandler);
-
         NotificationResponse response = notificationService.sendNotification(request);
 
         assertThat(response).isNotNull();
         assertThat(response.getPriority()).isEqualTo(NotificationPriority.HIGH);
         assertThat(response.getChannel()).isEqualTo(NotificationChannel.EMAIL);
-        verify(channelResolverService).resolve(NotificationChannel.EMAIL);
-        verify(emailHandler).send(any(Notification.class));
+        verify(processingService).processNotificationAsync(any(Notification.class));
     }
 
     @Test
@@ -105,8 +95,6 @@ class NotificationServiceTest {
                     n.setCreatedAt(LocalDateTime.now());
                     return n;
                 });
-        when(channelResolverService.resolve(NotificationChannel.EMAIL)).thenReturn(emailHandler);
-
         NotificationResponse response = notificationService.sendNotification(request);
 
         assertThat(response.getPriority()).isEqualTo(NotificationPriority.MEDIUM);
@@ -139,7 +127,7 @@ class NotificationServiceTest {
 
         assertThat(response.getStatus()).isEqualTo(NotificationStatus.SCHEDULED);
         assertThat(response.getScheduledAt()).isEqualTo(futureTime);
-        verify(channelResolverService, never()).resolve(any());
+        verify(processingService, never()).processNotificationAsync(any());
     }
 
     @Test
@@ -200,13 +188,16 @@ class NotificationServiceTest {
     void shouldCalculateNextRecurrence() {
         LocalDateTime now = LocalDateTime.of(2025, 3, 18, 10, 0);
 
-        assertThat(notificationService.calculateNextRecurrence(now, RecurrenceType.DAILY))
+        NotificationProcessingService realProcessingService = new NotificationProcessingService(
+                notificationRepository, null, null);
+
+        assertThat(realProcessingService.calculateNextRecurrence(now, RecurrenceType.DAILY))
                 .isEqualTo(now.plusDays(1));
-        assertThat(notificationService.calculateNextRecurrence(now, RecurrenceType.WEEKLY))
+        assertThat(realProcessingService.calculateNextRecurrence(now, RecurrenceType.WEEKLY))
                 .isEqualTo(now.plusWeeks(1));
-        assertThat(notificationService.calculateNextRecurrence(now, RecurrenceType.MONTHLY))
+        assertThat(realProcessingService.calculateNextRecurrence(now, RecurrenceType.MONTHLY))
                 .isEqualTo(now.plusMonths(1));
-        assertThat(notificationService.calculateNextRecurrence(now, RecurrenceType.NONE))
+        assertThat(realProcessingService.calculateNextRecurrence(now, RecurrenceType.NONE))
                 .isNull();
     }
 }

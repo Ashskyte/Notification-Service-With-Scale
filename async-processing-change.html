@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Change #1 — Async Processing</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .container { max-width: 1100px; margin: 0 auto; }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+        .badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #059669, #34d399);
+            color: #fff;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            padding: 6px 18px;
+            border-radius: 20px;
+            margin-bottom: 16px;
+        }
+        h1 {
+            font-size: 32px;
+            font-weight: 800;
+            color: #f8fafc;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            font-size: 15px;
+            color: #94a3b8;
+        }
+
+        /* Section */
+        .section {
+            margin-bottom: 40px;
+        }
+        .section-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #f8fafc;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #1e293b;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .section-title .icon { font-size: 24px; }
+
+        /* Problem / Solution Cards */
+        .card-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+        @media (max-width: 768px) { .card-grid { grid-template-columns: 1fr; } }
+
+        .card {
+            background: #1e293b;
+            border-radius: 14px;
+            padding: 24px;
+            border: 1px solid #334155;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .card:hover { transform: translateY(-3px); box-shadow: 0 8px 30px rgba(0,0,0,0.3); }
+        .card.problem { border-left: 4px solid #ef4444; }
+        .card.solution { border-left: 4px solid #22c55e; }
+        .card-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 10px;
+        }
+        .card.problem .card-label { color: #f87171; }
+        .card.solution .card-label { color: #4ade80; }
+        .card h3 {
+            font-size: 16px;
+            color: #f8fafc;
+            margin-bottom: 8px;
+        }
+        .card p {
+            font-size: 13px;
+            color: #94a3b8;
+            line-height: 1.7;
+        }
+
+        /* Before / After Diagram */
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 60px 1fr;
+            gap: 0;
+            align-items: center;
+            margin: 24px 0;
+        }
+        @media (max-width: 768px) {
+            .comparison { grid-template-columns: 1fr; gap: 16px; }
+            .comparison .arrow-col { transform: rotate(90deg); }
+        }
+        .flow-box {
+            background: #1e293b;
+            border-radius: 14px;
+            padding: 24px;
+            border: 1px solid #334155;
+        }
+        .flow-box.before { border-top: 3px solid #ef4444; }
+        .flow-box.after { border-top: 3px solid #22c55e; }
+        .flow-box h4 {
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 16px;
+        }
+        .flow-box.before h4 { color: #f87171; }
+        .flow-box.after h4 { color: #4ade80; }
+
+        .arrow-col {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 28px;
+            color: #64748b;
+        }
+
+        /* Flow steps */
+        .flow-step {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+        .flow-step:last-child { margin-bottom: 0; }
+        .step-num {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+        .before .step-num { background: #7f1d1d; color: #fca5a5; }
+        .after .step-num { background: #14532d; color: #86efac; }
+        .step-text {
+            font-size: 13px;
+            color: #cbd5e1;
+            line-height: 1.5;
+        }
+        .step-text code {
+            background: #334155;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #e2e8f0;
+        }
+        .blocking-tag {
+            display: inline-block;
+            background: #7f1d1d;
+            color: #fca5a5;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-left: 6px;
+        }
+        .async-tag {
+            display: inline-block;
+            background: #14532d;
+            color: #86efac;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-left: 6px;
+        }
+
+        /* Files Changed Table */
+        .file-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .file-table thead th {
+            text-align: left;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #64748b;
+            padding: 10px 16px;
+            border-bottom: 2px solid #334155;
+        }
+        .file-table tbody td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #1e293b;
+            color: #cbd5e1;
+            vertical-align: top;
+        }
+        .file-table tbody tr:hover { background: #1e293b; }
+        .file-name {
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            color: #38bdf8;
+            font-size: 12px;
+        }
+        .tag-new {
+            display: inline-block;
+            background: #14532d;
+            color: #86efac;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+        .tag-modified {
+            display: inline-block;
+            background: #713f12;
+            color: #fde047;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        /* Config Box */
+        .config-box {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 20px 24px;
+            border: 1px solid #334155;
+            margin-top: 16px;
+        }
+        .config-box h4 {
+            font-size: 14px;
+            color: #f8fafc;
+            margin-bottom: 12px;
+        }
+        .config-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #293548;
+            font-size: 13px;
+        }
+        .config-item:last-child { border-bottom: none; }
+        .config-key {
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            color: #a78bfa;
+            font-size: 12px;
+        }
+        .config-val {
+            color: #34d399;
+            font-weight: 600;
+        }
+        .config-desc {
+            color: #64748b;
+            font-size: 11px;
+            margin-left: 12px;
+        }
+
+        /* Architecture Diagram */
+        .arch-diagram {
+            background: #1e293b;
+            border-radius: 14px;
+            padding: 32px;
+            border: 1px solid #334155;
+            text-align: center;
+        }
+        .arch-row {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 8px;
+        }
+        .arch-box {
+            border-radius: 10px;
+            padding: 12px 20px;
+            text-align: center;
+            min-width: 160px;
+            transition: transform 0.15s;
+        }
+        .arch-box:hover { transform: translateY(-2px); }
+        .arch-box .a-title { font-weight: 700; font-size: 13px; margin-bottom: 3px; }
+        .arch-box .a-desc { font-size: 10px; opacity: 0.8; }
+
+        .arch-api { background: linear-gradient(135deg, #0ea5e9, #38bdf8); }
+        .arch-service { background: linear-gradient(135deg, #2563eb, #3b82f6); }
+        .arch-queue { background: linear-gradient(135deg, #ca8a04, #facc15); color: #1e1e1e; }
+        .arch-pool { background: linear-gradient(135deg, #7c3aed, #a78bfa); }
+        .arch-channel { background: linear-gradient(135deg, #059669, #34d399); }
+
+        .arch-arrow {
+            width: 2px;
+            height: 24px;
+            background: #475569;
+            margin: 0 auto;
+            position: relative;
+        }
+        .arch-arrow::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 7px solid #475569;
+        }
+        .arch-label {
+            font-size: 10px;
+            color: #64748b;
+            margin: 2px 0;
+            letter-spacing: 0.5px;
+        }
+
+        /* Key Benefits */
+        .benefits-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+        }
+        @media (max-width: 768px) { .benefits-grid { grid-template-columns: 1fr 1fr; } }
+        .benefit-card {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #334155;
+            text-align: center;
+            transition: transform 0.15s;
+        }
+        .benefit-card:hover { transform: translateY(-3px); }
+        .benefit-icon { font-size: 28px; margin-bottom: 8px; }
+        .benefit-title { font-size: 14px; font-weight: 700; color: #f8fafc; margin-bottom: 4px; }
+        .benefit-desc { font-size: 12px; color: #94a3b8; line-height: 1.5; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- Header -->
+    <div class="header">
+        <div class="badge">Change #1 Complete</div>
+        <h1>Async Processing</h1>
+        <p class="subtitle">Decouple notification dispatch from HTTP request threads using Spring @Async with a dedicated thread pool</p>
+    </div>
+
+    <!-- ========== PROBLEM vs SOLUTION ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F50D;</span> Problem vs Solution</div>
+        <div class="card-grid">
+            <div class="card problem">
+                <div class="card-label">The Problem</div>
+                <h3>Synchronous Blocking API</h3>
+                <p>
+                    The original <code>NotificationService</code> processed every notification <strong>synchronously inside the HTTP request thread</strong>.
+                    When a user called <code>POST /api/notifications/send</code>, the API would:
+                </p>
+                <br>
+                <p>1. Save the notification to the database</p>
+                <p>2. Resolve the channel handler (Email/SMS/Push)</p>
+                <p>3. Call the external provider (SendGrid, Twilio, FCM)</p>
+                <p>4. Wait for the response</p>
+                <p>5. Update status and return to the caller</p>
+                <br>
+                <p>
+                    Steps 2-4 happen <strong>while the HTTP connection is held open</strong>. Under high load with millions of notifications,
+                    this causes <strong>thread starvation</strong>, API timeouts, and cascading failures. Bulk sends (<code>/send/bulk</code>) were even worse,
+                    processing every notification sequentially in a single thread.
+                </p>
+            </div>
+            <div class="card solution">
+                <div class="card-label">The Solution</div>
+                <h3>Async Fire-and-Forget with Thread Pool</h3>
+                <p>
+                    Notification dispatch is now <strong>fully asynchronous</strong>. The API saves the notification to the DB and immediately returns
+                    a response with <code>PENDING</code> status. The actual channel delivery happens in a <strong>background thread pool</strong>
+                    managed by Spring's <code>@Async</code> infrastructure.
+                </p>
+                <br>
+                <p>1. API receives request, validates, saves to DB</p>
+                <p>2. API returns immediately with PENDING status</p>
+                <p>3. Background thread picks up the notification</p>
+                <p>4. Channel handler sends via external provider</p>
+                <p>5. Status updated to SENT or FAILED asynchronously</p>
+                <br>
+                <p>
+                    The thread pool has a <strong>queue capacity of 10,000</strong> with <code>CallerRunsPolicy</code> backpressure.
+                    When the queue is full, the calling thread processes the notification itself &mdash; providing natural throttling
+                    without dropping notifications.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== BEFORE / AFTER FLOW ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F504;</span> Before vs After Flow</div>
+        <div class="comparison">
+            <div class="flow-box before">
+                <h4>Before (Synchronous)</h4>
+                <div class="flow-step">
+                    <div class="step-num">1</div>
+                    <div class="step-text">HTTP Request arrives at <code>NotificationController</code></div>
+                </div>
+                <div class="flow-step">
+                    <div class="step-num">2</div>
+                    <div class="step-text"><code>NotificationService.sendNotification()</code> saves to DB</div>
+                </div>
+                <div class="flow-step">
+                    <div class="step-num">3</div>
+                    <div class="step-text"><code>processNotification()</code> calls channel handler <span class="blocking-tag">BLOCKING</span></div>
+                </div>
+                <div class="flow-step">
+                    <div class="step-num">4</div>
+                    <div class="step-text">Waits for external provider response <span class="blocking-tag">BLOCKING</span></div>
+                </div>
+                <div class="flow-step">
+                    <div class="step-num">5</div>
+                    <div class="step-text">Updates status, returns HTTP response</div>
+                </div>
+                <div style="margin-top: 14px; padding: 10px; background: #7f1d1d22; border-radius: 8px; font-size: 12px; color: #fca5a5;">
+                    Total time = DB save + External API call + Status update<br>
+                    <strong>HTTP thread blocked for entire duration</strong>
+                </div>
+            </div>
+
+            <div class="arrow-col">&#x27A1;</div>
+
+            <div class="flow-box after">
+                <h4>After (Asynchronous)</h4>
+                <div class="flow-step">
+                    <div class="step-num">1</div>
+                    <div class="step-text">HTTP Request arrives at <code>NotificationController</code></div>
+                </div>
+                <div class="flow-step">
+                    <div class="step-num">2</div>
+                    <div class="step-text"><code>NotificationService.sendNotification()</code> saves to DB</div>
+                </div>
+                <div class="flow-step">
+                    <div class="step-num">3</div>
+                    <div class="step-text"><code>processNotificationAsync()</code> submits to thread pool <span class="async-tag">ASYNC</span></div>
+                </div>
+                <div class="flow-step">
+                    <div class="step-num">4</div>
+                    <div class="step-text">HTTP response returned immediately (PENDING) <span class="async-tag">FAST</span></div>
+                </div>
+                <div class="flow-step">
+                    <div class="step-num">5</div>
+                    <div class="step-text">Background thread: send via channel, update status</div>
+                </div>
+                <div style="margin-top: 14px; padding: 10px; background: #14532d33; border-radius: 8px; font-size: 12px; color: #86efac;">
+                    API response time = DB save only (~5ms)<br>
+                    <strong>HTTP thread freed instantly</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== ARCHITECTURE ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F3D7;</span> New Architecture</div>
+        <div class="arch-diagram">
+            <div class="arch-row">
+                <div class="arch-box arch-api">
+                    <div class="a-title">NotificationController</div>
+                    <div class="a-desc">REST API Layer</div>
+                </div>
+            </div>
+            <div class="arch-arrow"></div>
+            <div class="arch-label">delegates</div>
+            <div class="arch-arrow"></div>
+            <div class="arch-row">
+                <div class="arch-box arch-service">
+                    <div class="a-title">NotificationService</div>
+                    <div class="a-desc">Validate &bull; Save &bull; Return</div>
+                </div>
+            </div>
+            <div class="arch-arrow"></div>
+            <div class="arch-label">fire &amp; forget (async)</div>
+            <div class="arch-arrow"></div>
+            <div class="arch-row">
+                <div class="arch-box arch-queue">
+                    <div class="a-title">Task Queue (10,000)</div>
+                    <div class="a-desc">LinkedBlockingQueue &bull; CallerRunsPolicy</div>
+                </div>
+            </div>
+            <div class="arch-arrow"></div>
+            <div class="arch-label">picked up by</div>
+            <div class="arch-arrow"></div>
+            <div class="arch-row">
+                <div class="arch-box arch-pool">
+                    <div class="a-title">Thread Pool (10-50 threads)</div>
+                    <div class="a-desc">NotificationProcessingService @Async</div>
+                </div>
+            </div>
+            <div class="arch-arrow"></div>
+            <div class="arch-label">dispatches to</div>
+            <div class="arch-arrow"></div>
+            <div class="arch-row">
+                <div class="arch-box arch-channel" style="min-width: 120px;">
+                    <div class="a-title">Email</div>
+                    <div class="a-desc">SendGrid / SES</div>
+                </div>
+                <div class="arch-box arch-channel" style="min-width: 120px;">
+                    <div class="a-title">SMS</div>
+                    <div class="a-desc">Twilio / SNS</div>
+                </div>
+                <div class="arch-box arch-channel" style="min-width: 120px;">
+                    <div class="a-title">Push</div>
+                    <div class="a-desc">FCM / APNs</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== FILES CHANGED ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F4C1;</span> Files Changed</div>
+        <table class="file-table">
+            <thead>
+                <tr>
+                    <th>File</th>
+                    <th>Status</th>
+                    <th>What Changed</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="file-name">config/AsyncConfig.java</td>
+                    <td><span class="tag-new">NEW</span></td>
+                    <td>Dedicated thread pool executor bean with configurable core/max/queue sizes and graceful shutdown</td>
+                </tr>
+                <tr>
+                    <td class="file-name">service/NotificationProcessingService.java</td>
+                    <td><span class="tag-new">NEW</span></td>
+                    <td>Extracted processing logic with <code>@Async("notificationTaskExecutor")</code>. Contains <code>processNotificationAsync()</code> and <code>processNotification()</code></td>
+                </tr>
+                <tr>
+                    <td class="file-name">NotificationSystemApplication.java</td>
+                    <td><span class="tag-modified">MODIFIED</span></td>
+                    <td>Added <code>@EnableAsync</code> annotation to activate Spring's async infrastructure</td>
+                </tr>
+                <tr>
+                    <td class="file-name">service/NotificationService.java</td>
+                    <td><span class="tag-modified">MODIFIED</span></td>
+                    <td>Replaced inline <code>processNotification()</code> with delegation to <code>processingService.processNotificationAsync()</code>. Removed processing and recurrence logic (moved to ProcessingService)</td>
+                </tr>
+                <tr>
+                    <td class="file-name">service/NotificationSchedulerService.java</td>
+                    <td><span class="tag-modified">MODIFIED</span></td>
+                    <td>Updated to use <code>NotificationProcessingService</code> instead of <code>NotificationService</code> for processing and recurrence</td>
+                </tr>
+                <tr>
+                    <td class="file-name">application.properties</td>
+                    <td><span class="tag-modified">MODIFIED</span></td>
+                    <td>Added <code>notification.async.core-pool-size</code>, <code>max-pool-size</code>, <code>queue-capacity</code> properties</td>
+                </tr>
+                <tr>
+                    <td class="file-name">test/NotificationServiceTest.java</td>
+                    <td><span class="tag-modified">MODIFIED</span></td>
+                    <td>Updated mocks and assertions to verify async delegation instead of direct channel resolution</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- ========== THREAD POOL CONFIG ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x2699;</span> Thread Pool Configuration</div>
+        <div class="config-box">
+            <h4>application.properties</h4>
+            <div class="config-item">
+                <div>
+                    <span class="config-key">notification.async.core-pool-size</span>
+                    <span class="config-desc">Threads always kept alive</span>
+                </div>
+                <span class="config-val">10</span>
+            </div>
+            <div class="config-item">
+                <div>
+                    <span class="config-key">notification.async.max-pool-size</span>
+                    <span class="config-desc">Max threads under peak load</span>
+                </div>
+                <span class="config-val">50</span>
+            </div>
+            <div class="config-item">
+                <div>
+                    <span class="config-key">notification.async.queue-capacity</span>
+                    <span class="config-desc">Pending tasks before scaling up threads</span>
+                </div>
+                <span class="config-val">10,000</span>
+            </div>
+            <div class="config-item">
+                <div>
+                    <span class="config-key">RejectedExecutionHandler</span>
+                    <span class="config-desc">What happens when queue + threads are full</span>
+                </div>
+                <span class="config-val">CallerRunsPolicy</span>
+            </div>
+            <div class="config-item">
+                <div>
+                    <span class="config-key">awaitTerminationSeconds</span>
+                    <span class="config-desc">Graceful shutdown wait time</span>
+                </div>
+                <span class="config-val">60s</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== KEY BENEFITS ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F680;</span> Key Benefits</div>
+        <div class="benefits-grid">
+            <div class="benefit-card">
+                <div class="benefit-icon">&#x26A1;</div>
+                <div class="benefit-title">Instant API Response</div>
+                <div class="benefit-desc">API returns in ~5ms instead of waiting 200-2000ms for external provider calls</div>
+            </div>
+            <div class="benefit-card">
+                <div class="benefit-icon">&#x1F4C8;</div>
+                <div class="benefit-title">10x Higher Throughput</div>
+                <div class="benefit-desc">50 concurrent threads processing notifications vs 1 blocked HTTP thread per request</div>
+            </div>
+            <div class="benefit-card">
+                <div class="benefit-icon">&#x1F6E1;</div>
+                <div class="benefit-title">Backpressure Safety</div>
+                <div class="benefit-desc">CallerRunsPolicy prevents OOM. When queue is full, caller thread processes the task itself</div>
+            </div>
+            <div class="benefit-card">
+                <div class="benefit-icon">&#x1F50C;</div>
+                <div class="benefit-title">Graceful Shutdown</div>
+                <div class="benefit-desc">On shutdown, waits up to 60s for in-flight notifications to complete before terminating</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="text-align: center; margin-top: 40px; padding-top: 24px; border-top: 1px solid #1e293b; font-size: 12px; color: #475569;">
+        Notification System &bull; Scalability Change #1 &bull; Async Processing &bull; Spring Boot + @Async + ThreadPoolTaskExecutor
+    </div>
+
+</div>
+
+</body>
+</html>

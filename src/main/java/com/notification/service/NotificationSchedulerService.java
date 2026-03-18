@@ -19,7 +19,7 @@ import java.util.List;
 public class NotificationSchedulerService {
 
     private final NotificationRepository notificationRepository;
-    private final NotificationService notificationService;
+    private final NotificationProcessingService processingService;
     private final RetryService retryService;
 
     @Scheduled(fixedRate = 30000) // Every 30 seconds
@@ -32,7 +32,7 @@ public class NotificationSchedulerService {
         if (!scheduledNotifications.isEmpty()) {
             log.info("Processing {} scheduled notifications", scheduledNotifications.size());
             for (Notification notification : scheduledNotifications) {
-                notificationService.processNotification(notification);
+                processingService.processNotification(notification);
             }
         }
     }
@@ -58,10 +58,10 @@ public class NotificationSchedulerService {
                         .build();
 
                 recurring = notificationRepository.save(recurring);
-                notificationService.processNotification(recurring);
+                processingService.processNotification(recurring);
 
                 original.setNextRecurrenceAt(
-                        notificationService.calculateNextRecurrence(now, original.getRecurrenceType()));
+                        processingService.calculateNextRecurrence(now, original.getRecurrenceType()));
                 notificationRepository.save(original);
             }
         }

@@ -1,6 +1,5 @@
 package com.notification.service;
 
-import com.notification.channel.NotificationChannelHandler;
 import com.notification.dto.BulkNotificationRequest;
 import com.notification.dto.NotificationResponse;
 import com.notification.dto.SendNotificationRequest;
@@ -33,8 +32,7 @@ public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final UserService userService;
-    private final ChannelResolverService channelResolverService;
-    private final RetryService retryService;
+    private final NotificationProcessingService processingService;
 
     @Value("${notification.batch.size:100}")
     private int batchSize;
@@ -73,7 +71,7 @@ public class NotificationService {
         }
 
         notification = notificationRepository.save(notification);
-        processNotification(notification);
+        processingService.processNotificationAsync(notification);
         return NotificationResponse.fromEntity(notification);
     }
 
@@ -103,7 +101,7 @@ public class NotificationService {
                             .build();
 
                     notification = notificationRepository.save(notification);
-                    processNotification(notification);
+                    processingService.processNotificationAsync(notification);
                     responses.add(NotificationResponse.fromEntity(notification));
 
                 } catch (Exception e) {
@@ -117,36 +115,6 @@ public class NotificationService {
                 request.getUserIds().size());
 
         return responses;
-    }
-
-    public void processNotification(Notification notification) {
-        try {
-            notification.setStatus(NotificationStatus.PROCESSING);
-            notificationRepository.save(notification);
-
-            NotificationChannelHandler handler = channelResolverService.resolve(notification.getChannel());
-            handler.send(notification);
-
-            notification.setStatus(NotificationStatus.SENT);
-            notification.setSentAt(LocalDateTime.now());
-
-            if (notification.getRecurrenceType() != RecurrenceType.NONE) {
-                notification.setNextRecurrenceAt(calculateNextRecurrence(
-                        LocalDateTime.now(), notification.getRecurrenceType()));
-            }
-
-            notificationRepository.save(notification);
-            log.info("Notification [{}] sent successfully via {}",
-                    notification.getId(), notification.getChannel());
-
-        } catch (Exception e) {
-            log.error("Failed to send notification [{}]: {}", notification.getId(), e.getMessage());
-            notification.setStatus(NotificationStatus.FAILED);
-            notification.setFailureReason(e.getMessage());
-            notificationRepository.save(notification);
-
-            retryService.retryNotification(notification);
-        }
     }
 
     @Transactional(readOnly = true)
@@ -168,15 +136,6 @@ public class NotificationService {
         return notificationRepository.findByUserIdAndStatus(userId, status).stream()
                 .map(NotificationResponse::fromEntity)
                 .collect(Collectors.toList());
-    }
-
-    public LocalDateTime calculateNextRecurrence(LocalDateTime from, RecurrenceType recurrenceType) {
-        return switch (recurrenceType) {
-            case DAILY -> from.plusDays(1);
-            case WEEKLY -> from.plusWeeks(1);
-            case MONTHLY -> from.plusMonths(1);
-            case NONE -> null;
-        };
     }
 
     private <T> List<List<T>> partitionList(List<T> list, int partitionSize) {
