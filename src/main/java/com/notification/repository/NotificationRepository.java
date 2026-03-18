@@ -30,6 +30,9 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Query("SELECT n FROM Notification n WHERE n.status = :status AND n.retryCount < n.maxRetries")
     List<Notification> findRetryableNotifications(@Param("status") NotificationStatus status);
 
+    @Query("SELECT n FROM Notification n WHERE n.status = 'RETRY' AND n.retryCount < n.maxRetries AND n.nextRetryAt <= :now ORDER BY n.nextRetryAt ASC")
+    List<Notification> findDueRetryNotifications(@Param("now") LocalDateTime now);
+
     @Query("SELECT n FROM Notification n WHERE n.recurrenceType <> 'NONE' AND n.nextRecurrenceAt <= :now AND n.status = 'SENT'")
     List<Notification> findRecurringNotificationsDue(@Param("now") LocalDateTime now);
 

@@ -57,7 +57,7 @@ public class NotificationProcessingService {
             notification.setFailureReason(e.getMessage());
             notificationRepository.save(notification);
 
-            retryService.retryNotification(notification);
+            retryService.scheduleRetry(notification);
         }
     }
 

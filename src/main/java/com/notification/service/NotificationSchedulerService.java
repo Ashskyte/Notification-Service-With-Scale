@@ -67,9 +67,9 @@ public class NotificationSchedulerService {
         }
     }
 
-    @Scheduled(fixedRate = 120000) // Every 2 minutes
+    @Scheduled(fixedRate = 10000) // Every 10 seconds — check for due retries
     public void retryFailedNotifications() {
-        log.debug("Running retry job for failed notifications");
-        retryService.retryFailedNotifications();
+        log.debug("Running retry job for due notifications");
+        retryService.processDueRetries();
     }
 }

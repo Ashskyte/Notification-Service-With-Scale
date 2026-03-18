@@ -10,7 +10,8 @@ import java.time.LocalDateTime;
 @Table(name = "notifications", indexes = {
     @Index(name = "idx_notification_status", columnList = "status"),
     @Index(name = "idx_notification_priority", columnList = "priority"),
-    @Index(name = "idx_notification_scheduled_at", columnList = "scheduledAt")
+    @Index(name = "idx_notification_scheduled_at", columnList = "scheduledAt"),
+    @Index(name = "idx_notification_next_retry_at", columnList = "nextRetryAt")
 })
 @Getter
 @Setter
@@ -64,6 +65,8 @@ public class Notification {
     private int maxRetries = 3;
 
     private String failureReason;
+
+    private LocalDateTime nextRetryAt;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
