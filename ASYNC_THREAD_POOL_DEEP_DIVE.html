@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Async Thread Pool &amp; Connection Pooling Deep Dive</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            line-height: 1.6;
+            padding: 40px 20px;
+        }
+        .container { max-width: 1100px; margin: 0 auto; }
+        .header { text-align: center; margin-bottom: 48px; }
+        .header h1 {
+            font-size: 30px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #38bdf8, #a78bfa, #f472b6);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+        .header .subtitle { font-size: 14px; color: #64748b; }
+        .section {
+            background: #1e293b;
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 28px;
+            border: 1px solid #334155;
+        }
+        .section-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .icon { font-size: 24px; }
+        code {
+            background: #0f172a;
+            padding: 2px 7px;
+            border-radius: 4px;
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 12px;
+            color: #a78bfa;
+        }
+        .code-block {
+            background: #020617;
+            border: 1px solid #1e293b;
+            border-radius: 12px;
+            padding: 22px 26px;
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 12.5px;
+            line-height: 1.9;
+            overflow-x: auto;
+            margin: 16px 0;
+            position: relative;
+        }
+        .code-block .file-tag {
+            position: absolute;
+            top: 8px;
+            right: 12px;
+            font-size: 10px;
+            color: #475569;
+            background: #1e293b;
+            padding: 2px 10px;
+            border-radius: 8px;
+        }
+        .kw { color: #c084fc; }         /* keyword */
+        .ann { color: #f472b6; }        /* annotation */
+        .str { color: #86efac; }        /* string */
+        .num { color: #fbbf24; }        /* number */
+        .cmt { color: #475569; }        /* comment */
+        .type { color: #38bdf8; }       /* type */
+        .method { color: #fde047; }     /* method */
+        .var { color: #e2e8f0; }        /* variable */
+        .prop { color: #fb923c; }       /* property/config */
+        .param-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+            margin: 16px 0;
+        }
+        .param-card {
+            background: #0f172a;
+            border-radius: 12px;
+            padding: 20px 24px;
+            border: 1px solid #293548;
+        }
+        .param-card .param-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .param-card .param-name {
+            font-size: 15px;
+            font-weight: 700;
+            color: #f8fafc;
+        }
+        .param-card .param-value {
+            font-size: 18px;
+            font-weight: 800;
+            color: #a78bfa;
+            font-family: 'Cascadia Code', monospace;
+        }
+        .param-card .param-desc {
+            font-size: 13px;
+            color: #94a3b8;
+            line-height: 1.7;
+        }
+        .param-card .param-why {
+            margin-top: 10px;
+            padding: 10px 14px;
+            background: #1e293b;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #7dd3fc;
+            line-height: 1.7;
+        }
+        .flow-step {
+            display: grid;
+            grid-template-columns: 56px 1fr;
+            gap: 4px 18px;
+            margin: 14px 0;
+        }
+        .flow-num {
+            background: #7c3aed;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 16px;
+        }
+        .flow-content {
+            padding-top: 4px;
+            font-size: 13px;
+            color: #94a3b8;
+            line-height: 1.8;
+        }
+        .flow-content strong { color: #e2e8f0; }
+        .info-box {
+            padding: 14px 18px;
+            border-radius: 10px;
+            font-size: 13px;
+            margin-top: 16px;
+            line-height: 1.7;
+        }
+        .info-green { background: #14532d33; color: #86efac; border: 1px solid #14532d55; }
+        .info-yellow { background: #713f1233; color: #fde047; border: 1px solid #713f1255; }
+        .info-blue { background: #1e3a5f33; color: #7dd3fc; border: 1px solid #1e3a5f55; }
+        .info-red { background: #7f1d1d33; color: #fca5a5; border: 1px solid #7f1d1d55; }
+        .diagram-box {
+            background: #020617;
+            border: 1px solid #293548;
+            border-radius: 12px;
+            padding: 28px;
+            font-family: 'Cascadia Code', monospace;
+            font-size: 12px;
+            color: #94a3b8;
+            line-height: 1.6;
+            overflow-x: auto;
+            white-space: pre;
+            margin: 16px 0;
+        }
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 16px 0;
+        }
+        .col-card {
+            border-radius: 12px;
+            padding: 20px 24px;
+        }
+        .col-sync { background: #7f1d1d22; border: 1px solid #7f1d1d55; }
+        .col-async { background: #14532d22; border: 1px solid #14532d55; }
+        .scenario-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            background: #0f172a;
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 16px 0;
+        }
+        .scenario-table th {
+            padding: 12px 16px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #64748b;
+            border-bottom: 2px solid #334155;
+            text-align: left;
+        }
+        .scenario-table td {
+            padding: 11px 16px;
+            border-bottom: 1px solid #293548;
+            color: #94a3b8;
+        }
+        .scenario-table td:first-child { color: #cbd5e1; font-weight: 600; }
+        .scenario-table tr:last-child td { border-bottom: none; }
+        .highlight { color: #86efac; font-weight: 700; }
+        .danger { color: #fca5a5; font-weight: 700; }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <!-- Header -->
+    <div class="header">
+        <h1>Async Thread Pool &amp; Connection Pooling Deep Dive</h1>
+        <div class="subtitle">
+            How the Notification System handles high traffic with @Async + ThreadPoolTaskExecutor &bull; March 2026
+        </div>
+    </div>
+
+    <!-- ========== 1. THE BIG PICTURE ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F3D7;</span> The Big Picture: 3 Pools Working Together</div>
+
+        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 16px;">
+            The async notification system has <strong>three distinct thread/connection pools</strong> that work together.
+            Understanding how they interact is key to understanding performance and capacity.
+        </p>
+
+        <div class="diagram-box">
+                          <span style="color:#fbbf24;">Incoming HTTP Requests</span>
+                                  │
+                                  ▼
+                    ┌─────────────────────────┐
+                    │  <span style="color:#38bdf8;">Tomcat Thread Pool</span>       │   200 threads (default)
+                    │  Handles HTTP I/O        │   One thread per request
+                    │  Parses JSON, validates   │
+                    │  Calls NotificationService│
+                    └────────────┬────────────┘
+                                 │
+              ┌──────────────────┼──────────────────┐
+              │ <span style="color:#fca5a5;">SYNC path</span>                   │ <span style="color:#86efac;">ASYNC path</span>
+              │                            │
+              ▼                            ▼
+    ┌─────────────────┐        ┌──────────────────────┐
+    │ Tomcat thread    │        │ Save to DB (PENDING)  │  ← <span style="color:#fbbf24;">~5ms</span>
+    │ <span style="color:#fca5a5;">BLOCKS here</span>      │        │ Submit to task queue   │  ← <span style="color:#86efac;">~0.01ms</span>
+    │ waiting for      │        │ <span style="color:#86efac;">Return HTTP 201</span>       │  ← <span style="color:#86efac;">Tomcat thread FREE</span>
+    │ email send       │        └──────────┬───────────┘
+    │ (~100ms+)        │                   │
+    │ then updates DB  │                   ▼
+    │ then returns 201 │        ┌──────────────────────┐
+    └─────────────────┘        │ <span style="color:#a78bfa;">notificationTaskExecutor</span> │   10-50 threads
+                               │  Background thread     │
+                               │  picks up task          │
+                               │  Sends email (100ms)    │
+                               │  Updates DB → SENT      │
+                               └──────────┬───────────┘
+                                          │
+                                          ▼
+                               ┌──────────────────────┐
+                               │  <span style="color:#fbbf24;">HikariCP Pool</span>         │   10 connections (default)
+                               │  Shared by ALL threads  │
+                               │  Tomcat + Async threads  │
+                               │  all compete for conns   │
+                               └──────────────────────┘
+        </div>
+    </div>
+
+    <!-- ========== 2. FILE-BY-FILE WALKTHROUGH ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F4C4;</span> Step 1: Enable Async — NotificationSystemApplication.java</div>
+
+        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 16px;">
+            The very first thing needed is to tell Spring Boot: "allow <code>@Async</code> methods to run on separate threads."
+            Without this, <code>@Async</code> annotations are silently ignored and everything runs synchronously.
+        </p>
+
+        <div class="code-block">
+            <div class="file-tag">NotificationSystemApplication.java</div>
+<span class="ann">@SpringBootApplication</span>
+<span class="ann">@EnableScheduling</span>
+<span class="ann">@EnableAsync</span>              <span class="cmt">// ← THIS activates async proxy support</span>
+<span class="kw">public class</span> <span class="type">NotificationSystemApplication</span> {
+    <span class="kw">public static void</span> <span class="method">main</span>(<span class="type">String</span>[] args) {
+        <span class="type">SpringApplication</span>.<span class="method">run</span>(<span class="type">NotificationSystemApplication</span>.<span class="kw">class</span>, args);
+    }
+}
+        </div>
+
+        <div class="info-blue">
+            <strong>What @EnableAsync does internally:</strong> Spring creates a proxy around any bean that has <code>@Async</code> methods.
+            When you call <code>processingService.processNotificationAsync(notification)</code>, the proxy intercepts the call,
+            wraps it in a <code>Runnable</code>, and submits it to the configured <code>Executor</code> — the caller returns immediately.
+        </div>
+    </div>
+
+    <!-- ========== 3. ASYNC CONFIG DEEP DIVE ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x2699;</span> Step 2: Configure the Thread Pool — AsyncConfig.java</div>
+
+        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 16px;">
+            This is the <strong>core of the async architecture</strong>. This class creates a named <code>ThreadPoolTaskExecutor</code>
+            bean with carefully chosen parameters. Every line matters.
+        </p>
+
+        <div class="code-block">
+            <div class="file-tag">AsyncConfig.java</div>
+<span class="ann">@Slf4j</span>
+<span class="ann">@Configuration</span>
+<span class="kw">public class</span> <span class="type">AsyncConfig</span> {
+
+    <span class="ann">@Value</span>(<span class="str">"${notification.async.core-pool-size:10}"</span>)
+    <span class="kw">private int</span> <span class="var">corePoolSize</span>;          <span class="cmt">// Always-alive threads</span>
+
+    <span class="ann">@Value</span>(<span class="str">"${notification.async.max-pool-size:50}"</span>)
+    <span class="kw">private int</span> <span class="var">maxPoolSize</span>;           <span class="cmt">// Burst capacity threads</span>
+
+    <span class="ann">@Value</span>(<span class="str">"${notification.async.queue-capacity:10000}"</span>)
+    <span class="kw">private int</span> <span class="var">queueCapacity</span>;         <span class="cmt">// Waiting room size</span>
+
+    <span class="ann">@Bean</span>(name = <span class="str">"notificationTaskExecutor"</span>)
+    <span class="kw">public</span> <span class="type">Executor</span> <span class="method">notificationTaskExecutor</span>() {
+        <span class="type">ThreadPoolTaskExecutor</span> executor = <span class="kw">new</span> <span class="type">ThreadPoolTaskExecutor</span>();
+
+        executor.<span class="method">setCorePoolSize</span>(<span class="var">corePoolSize</span>);       <span class="cmt">// 10 threads always alive</span>
+        executor.<span class="method">setMaxPoolSize</span>(<span class="var">maxPoolSize</span>);         <span class="cmt">// Can grow to 50 under load</span>
+        executor.<span class="method">setQueueCapacity</span>(<span class="var">queueCapacity</span>);     <span class="cmt">// 10,000 tasks can wait</span>
+        executor.<span class="method">setThreadNamePrefix</span>(<span class="str">"notif-async-"</span>);  <span class="cmt">// Easy log identification</span>
+
+        <span class="cmt">// CRITICAL: What happens when queue is full AND all 50 threads are busy</span>
+        executor.<span class="method">setRejectedExecutionHandler</span>(
+            <span class="kw">new</span> <span class="type">ThreadPoolExecutor.CallerRunsPolicy</span>()
+        );
+
+        <span class="cmt">// CRITICAL: On app shutdown, don't kill in-flight notifications</span>
+        executor.<span class="method">setWaitForTasksToCompleteOnShutdown</span>(<span class="kw">true</span>);
+        executor.<span class="method">setAwaitTerminationSeconds</span>(<span class="num">60</span>);
+
+        executor.<span class="method">initialize</span>();
+        <span class="kw">return</span> executor;
+    }
+}
+        </div>
+    </div>
+
+    <!-- ========== 4. EACH PARAMETER EXPLAINED ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F9E9;</span> Every Parameter Explained: Why These Numbers?</div>
+
+        <div class="param-grid">
+            <!-- corePoolSize -->
+            <div class="param-card">
+                <div class="param-header">
+                    <span class="param-name">corePoolSize</span>
+                    <span class="param-value">10</span>
+                </div>
+                <div class="param-desc">
+                    The number of threads that are <strong>always alive</strong>, even when idle. These threads are pre-created
+                    and waiting for work. They never get destroyed (unless <code>allowCoreThreadTimeOut</code> is set to true).
+                </div>
+                <div class="param-why">
+                    <strong>Why 10?</strong> This matches the default <strong>HikariCP connection pool size (10)</strong>.
+                    Since each async thread needs a DB connection to update notification status, having more core threads
+                    than DB connections would just cause threads to wait for connections. 10 core threads = 10 DB connections
+                    = perfect alignment for steady-state load.
+                    <br><br>
+                    <strong>Rule of thumb:</strong> <code>corePoolSize ≤ DB connection pool size</code> for I/O-bound work.
+                    For CPU-bound work, use <code>Runtime.getRuntime().availableProcessors()</code>.
+                </div>
+            </div>
+
+            <!-- maxPoolSize -->
+            <div class="param-card">
+                <div class="param-header">
+                    <span class="param-name">maxPoolSize</span>
+                    <span class="param-value">50</span>
+                </div>
+                <div class="param-desc">
+                    The <strong>maximum number of threads</strong> the pool can grow to when the queue is full.
+                    These extra threads (11-50) are only created when the <code>queueCapacity</code> (10,000) is exhausted.
+                    They are <strong>temporary</strong> — destroyed after being idle for 60 seconds (default keepAlive).
+                </div>
+                <div class="param-why">
+                    <strong>Why 50?</strong> This is the burst safety net. Under extreme traffic (10,000+ queued notifications),
+                    the pool scales up to 50 threads to drain the queue faster. 50 is chosen because:
+                    <br><br>
+                    <strong>1. Memory:</strong> Each thread uses ~1MB of stack space. 50 threads = ~50MB — acceptable.
+                    <br>
+                    <strong>2. Context switching:</strong> Beyond ~50-100 threads, the OS spends more time switching
+                    between threads than doing actual work. 50 keeps contention manageable.
+                    <br>
+                    <strong>3. External API rate limits:</strong> If the email provider allows max 50 concurrent connections,
+                    having 50 threads naturally aligns with that limit.
+                    <br>
+                    <strong>4. DB connections:</strong> Even though HikariCP defaults to 10, these burst threads will spend
+                    most of their time in <code>Thread.sleep(100)</code> (the external API call), only briefly needing a DB connection.
+                </div>
+            </div>
+
+            <!-- queueCapacity -->
+            <div class="param-card">
+                <div class="param-header">
+                    <span class="param-name">queueCapacity</span>
+                    <span class="param-value">10,000</span>
+                </div>
+                <div class="param-desc">
+                    The <strong>size of the LinkedBlockingQueue</strong> that holds tasks when all core threads are busy.
+                    Tasks wait here until a thread becomes available to process them. This is the "waiting room."
+                </div>
+                <div class="param-why">
+                    <strong>Why 10,000?</strong> This allows the system to absorb massive traffic spikes without rejecting requests.
+                    <br><br>
+                    <strong>Math:</strong> If each notification takes ~100ms to process, and we have 10 core threads,
+                    the pool processes <code>10 × (1000/100) = 100 notifications/sec</code>. A queue of 10,000
+                    means we can absorb a <strong>100-second burst</strong> of traffic at any rate without rejection.
+                    <br><br>
+                    <strong>Memory cost:</strong> Each queued task is a lightweight <code>Runnable</code> referencing
+                    a <code>Notification</code> object (~200 bytes). 10,000 × 200B ≈ <strong>2MB</strong> — negligible.
+                    <br><br>
+                    <strong>Tradeoff:</strong> Too large → notifications wait too long in queue (stale by the time they're sent).
+                    Too small → system starts rejecting tasks under moderate spikes.
+                    10,000 is a safe middle ground.
+                </div>
+            </div>
+
+            <!-- threadNamePrefix -->
+            <div class="param-card">
+                <div class="param-header">
+                    <span class="param-name">threadNamePrefix</span>
+                    <span class="param-value">"notif-async-"</span>
+                </div>
+                <div class="param-desc">
+                    Every thread created by this pool will be named <code>notif-async-1</code>, <code>notif-async-2</code>, etc.
+                    This makes it trivial to identify async notification threads in logs, thread dumps, and monitoring tools.
+                </div>
+                <div class="param-why">
+                    <strong>Why it matters:</strong> When debugging production issues, you can run <code>jstack &lt;PID&gt;</code>
+                    and instantly see which threads are processing notifications vs. Tomcat HTTP threads vs. scheduler threads.
+                    Without this, all threads would be named <code>pool-N-thread-M</code> — impossible to diagnose.
+                </div>
+            </div>
+
+            <!-- CallerRunsPolicy -->
+            <div class="param-card" style="border-color: #7f1d1d55;">
+                <div class="param-header">
+                    <span class="param-name">rejectedExecutionHandler</span>
+                    <span class="param-value" style="color: #f87171;">CallerRunsPolicy</span>
+                </div>
+                <div class="param-desc">
+                    This defines what happens when a new task arrives but <strong>all 50 threads are busy AND the 10,000 queue is full</strong>.
+                    With <code>CallerRunsPolicy</code>, the task runs on the <strong>caller's thread</strong> (the Tomcat HTTP thread) instead of being rejected.
+                </div>
+                <div class="param-why">
+                    <strong>Why CallerRunsPolicy and not others?</strong>
+                    <br><br>
+                    <table class="scenario-table" style="margin: 8px 0;">
+                        <tr>
+                            <th>Policy</th>
+                            <th>Behavior</th>
+                            <th>Risk</th>
+                        </tr>
+                        <tr>
+                            <td><code>AbortPolicy</code> (default)</td>
+                            <td>Throws <code>RejectedExecutionException</code></td>
+                            <td class="danger">Notification is LOST. User sees HTTP 500.</td>
+                        </tr>
+                        <tr>
+                            <td><code>DiscardPolicy</code></td>
+                            <td>Silently drops the task</td>
+                            <td class="danger">Notification is LOST. No error, no log. Worst option.</td>
+                        </tr>
+                        <tr>
+                            <td><code>DiscardOldestPolicy</code></td>
+                            <td>Drops the oldest queued task</td>
+                            <td class="danger">Oldest notification is LOST. Unpredictable.</td>
+                        </tr>
+                        <tr>
+                            <td style="color: #86efac; font-weight: 700;"><code>CallerRunsPolicy</code> ✓</td>
+                            <td>Caller thread runs the task itself</td>
+                            <td style="color: #86efac;">No notification lost. Caller just slows down (natural backpressure).</td>
+                        </tr>
+                    </table>
+                    <br>
+                    <strong>The beauty of CallerRunsPolicy:</strong> It creates <strong>natural backpressure</strong>.
+                    When the system is overwhelmed, Tomcat threads slow down because they're doing the work themselves.
+                    This automatically reduces the rate of incoming requests — the system self-regulates without losing any data.
+                </div>
+            </div>
+
+            <!-- waitForTasksToCompleteOnShutdown -->
+            <div class="param-card">
+                <div class="param-header">
+                    <span class="param-name">waitForTasksToCompleteOnShutdown</span>
+                    <span class="param-value">true</span>
+                </div>
+                <div class="param-desc">
+                    When the application shuts down (deploy, restart, crash recovery), this ensures the executor
+                    <strong>does not kill in-flight notification tasks</strong>. It waits up to <code>awaitTerminationSeconds</code> (60s)
+                    for all currently executing and queued tasks to finish.
+                </div>
+                <div class="param-why">
+                    <strong>Without this:</strong> If 500 notifications are in-flight and you restart the server,
+                    all 500 are lost — they're in <code>PROCESSING</code> status in DB but never complete.
+                    <br><br>
+                    <strong>With this:</strong> The shutdown signal tells the pool to stop accepting new tasks but finish existing ones.
+                    If tasks don't finish within 60 seconds, they're interrupted (and the retry service will pick them up later).
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== 5. THE EXECUTION ORDER ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F504;</span> Thread Pool Execution Order (Critical to Understand)</div>
+
+        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 16px;">
+            Java's <code>ThreadPoolTaskExecutor</code> does NOT immediately create threads up to <code>maxPoolSize</code>.
+            It follows a specific order that many developers get wrong:
+        </p>
+
+        <div class="diagram-box">
+    New task arrives
+         │
+         ▼
+    ┌─────────────────────────────────┐
+    │ Are there idle core threads?     │
+    │ (fewer than <span style="color:#a78bfa;">corePoolSize=10</span>       │
+    │  threads exist)                  │
+    └────────┬──────────┬─────────────┘
+        <span style="color:#86efac;">YES</span> │          │ <span style="color:#fca5a5;">NO</span>
+             │          │
+             ▼          ▼
+    ┌──────────┐  ┌─────────────────────────┐
+    │ Create a │  │ Is the queue full?       │
+    │ new core │  │ (queue size ≥ <span style="color:#a78bfa;">10,000</span>)    │
+    │ thread   │  └────────┬──────────┬──────┘
+    │ to run   │      <span style="color:#86efac;">NO</span>  │          │  <span style="color:#fca5a5;">YES</span>
+    │ the task │           │          │
+    └──────────┘           ▼          ▼
+                   ┌──────────┐ ┌──────────────────────────┐
+                   │ Add task │ │ Are there fewer than     │
+                   │ to the   │ │ <span style="color:#a78bfa;">maxPoolSize=50</span> threads?   │
+                   │ queue    │ └────────┬──────────┬───────┘
+                   │ (wait)   │     <span style="color:#86efac;">YES</span> │          │ <span style="color:#fca5a5;">NO</span>
+                   └──────────┘          │          │
+                                         ▼          ▼
+                                ┌──────────┐ ┌──────────────────┐
+                                │ Create a │ │ <span style="color:#f87171;">REJECT!</span>           │
+                                │ temporary│ │ CallerRunsPolicy │
+                                │ thread   │ │ → caller thread  │
+                                │ (11-50)  │ │   runs the task  │
+                                └──────────┘ └──────────────────┘
+        </div>
+
+        <div class="info-yellow">
+            <strong>Key insight:</strong> The pool fills the <strong>queue FIRST</strong> before creating extra threads.
+            This means threads 11-50 only get created when the queue hits 10,000 — which almost never happens under normal load.
+            In practice, the pool runs with 10 core threads and the queue absorbs all bursts.
+        </div>
+    </div>
+
+    <!-- ========== 6. APPLICATION PROPERTIES ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F4DD;</span> Step 3: Externalize Configuration — application.properties</div>
+
+        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 16px;">
+            All thread pool values are externalized to <code>application.properties</code> so they can be changed
+            without recompiling the code — essential for tuning in production.
+        </p>
+
+        <div class="code-block">
+            <div class="file-tag">application.properties</div>
+<span class="cmt"># Async Thread Pool Configuration</span>
+<span class="prop">notification.async.core-pool-size</span>=<span class="num">10</span>     <span class="cmt"># Always-alive threads</span>
+<span class="prop">notification.async.max-pool-size</span>=<span class="num">50</span>      <span class="cmt"># Burst capacity</span>
+<span class="prop">notification.async.queue-capacity</span>=<span class="num">10000</span>  <span class="cmt"># Waiting room</span>
+
+<span class="cmt"># These are injected via @Value in AsyncConfig.java</span>
+<span class="cmt"># Defaults are specified after the colon: ${property:default}</span>
+<span class="cmt"># If the property is missing, the default is used</span>
+        </div>
+
+        <div class="info-green">
+            <strong>Production tip:</strong> You can override these at deploy time without changing code:
+            <br><code>java -jar app.jar --notification.async.core-pool-size=25 --notification.async.max-pool-size=100</code>
+            <br>Or via environment variables: <code>NOTIFICATION_ASYNC_CORE_POOL_SIZE=25</code>
+        </div>
+    </div>
+
+    <!-- ========== 7. @ASYNC METHOD ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x26A1;</span> Step 4: The @Async Method — NotificationProcessingService.java</div>
+
+        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 16px;">
+            This is where the actual thread handoff happens. The <code>@Async("notificationTaskExecutor")</code> annotation
+            tells Spring to run this method on the <code>notificationTaskExecutor</code> pool instead of the caller's thread.
+        </p>
+
+        <div class="code-block">
+            <div class="file-tag">NotificationProcessingService.java</div>
+<span class="ann">@Async</span>(<span class="str">"notificationTaskExecutor"</span>)   <span class="cmt">// ← Run on our custom thread pool</span>
+<span class="ann">@Transactional</span>
+<span class="kw">public</span> <span class="type">CompletableFuture</span>&lt;<span class="type">Void</span>&gt; <span class="method">processNotificationAsync</span>(<span class="type">Notification</span> notification) {
+    <span class="method">processNotification</span>(notification);              <span class="cmt">// Heavy work here</span>
+    <span class="kw">return</span> <span class="type">CompletableFuture</span>.<span class="method">completedFuture</span>(<span class="kw">null</span>);  <span class="cmt">// Already done</span>
+}
+
+<span class="ann">@Transactional</span>
+<span class="kw">public void</span> <span class="method">processNotification</span>(<span class="type">Notification</span> notification) {
+    <span class="kw">try</span> {
+        notification.<span class="method">setStatus</span>(<span class="type">NotificationStatus</span>.PROCESSING);
+        notificationRepository.<span class="method">save</span>(notification);       <span class="cmt">// DB write #1</span>
+
+        <span class="type">NotificationChannelHandler</span> handler =
+            channelResolverService.<span class="method">resolve</span>(notification.<span class="method">getChannel</span>());
+        handler.<span class="method">send</span>(notification);                        <span class="cmt">// 100ms external API call</span>
+
+        notification.<span class="method">setStatus</span>(<span class="type">NotificationStatus</span>.SENT);
+        notification.<span class="method">setSentAt</span>(<span class="type">LocalDateTime</span>.<span class="method">now</span>());
+        notificationRepository.<span class="method">save</span>(notification);       <span class="cmt">// DB write #2</span>
+
+    } <span class="kw">catch</span> (<span class="type">Exception</span> e) {
+        notification.<span class="method">setStatus</span>(<span class="type">NotificationStatus</span>.FAILED);
+        notification.<span class="method">setFailureReason</span>(e.<span class="method">getMessage</span>());
+        notificationRepository.<span class="method">save</span>(notification);       <span class="cmt">// DB write (failure)</span>
+        retryService.<span class="method">retryNotification</span>(notification);     <span class="cmt">// Auto-retry</span>
+    }
+}
+        </div>
+
+        <div class="info-blue">
+            <strong>Why CompletableFuture&lt;Void&gt; and not void?</strong>
+            Returning <code>CompletableFuture</code> allows the caller to optionally <code>.thenAccept()</code>
+            or <code>.exceptionally()</code> the result if needed. In our case, we use fire-and-forget, but the
+            return type gives us flexibility for future enhancements (e.g., waiting for batch completion).
+        </div>
+    </div>
+
+    <!-- ========== 8. THE CALLER SIDE ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F4E8;</span> Step 5: The Caller — NotificationService.java</div>
+
+        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 16px;">
+            This is where the Tomcat HTTP thread <strong>hands off work</strong> and returns immediately.
+        </p>
+
+        <div class="code-block">
+            <div class="file-tag">NotificationService.java (sendNotification method)</div>
+<span class="ann">@Transactional</span>
+<span class="kw">public</span> <span class="type">NotificationResponse</span> <span class="method">sendNotification</span>(<span class="type">SendNotificationRequest</span> request) {
+    <span class="type">User</span> user = userService.<span class="method">findUserById</span>(request.<span class="method">getUserId</span>());    <span class="cmt">// DB read</span>
+
+    <span class="type">Notification</span> notification = <span class="type">Notification</span>.<span class="method">builder</span>()
+            .<span class="method">user</span>(user)
+            .<span class="method">title</span>(request.<span class="method">getTitle</span>())
+            .<span class="method">message</span>(request.<span class="method">getMessage</span>())
+            .<span class="method">channel</span>(request.<span class="method">getChannel</span>())
+            .<span class="method">priority</span>(priority)
+            .<span class="method">status</span>(<span class="type">NotificationStatus</span>.PENDING)
+            .<span class="method">build</span>();
+
+    notification = notificationRepository.<span class="method">save</span>(notification);   <span class="cmt">// DB write</span>
+
+    <span class="cmt">// ↓↓↓ THIS IS THE KEY LINE ↓↓↓</span>
+    <span class="cmt">// Spring proxy intercepts this call, wraps it in a Runnable,</span>
+    <span class="cmt">// submits to notificationTaskExecutor, and returns IMMEDIATELY</span>
+    processingService.<span class="method">processNotificationAsync</span>(notification);
+
+    <span class="cmt">// This line executes in ~0.01ms, NOT after email is sent</span>
+    <span class="kw">return</span> <span class="type">NotificationResponse</span>.<span class="method">fromEntity</span>(notification);
+}
+        </div>
+
+        <div class="two-col">
+            <div class="col-card col-sync">
+                <div style="font-size: 12px; font-weight: 700; color: #f87171; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px;">What SYNC Does</div>
+                <div style="font-size: 13px; color: #94a3b8; line-height: 2;">
+                    1. Look up user (DB read) — 3ms<br>
+                    2. Save notification (DB write) — 5ms<br>
+                    3. <span class="danger">Send email (BLOCKS 100ms)</span><br>
+                    4. <span class="danger">Update status to SENT (DB write) — 3ms</span><br>
+                    5. Return response<br>
+                    <strong style="color: #f87171;">Total: ~111ms per request</strong>
+                </div>
+            </div>
+            <div class="col-card col-async">
+                <div style="font-size: 12px; font-weight: 700; color: #4ade80; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px;">What ASYNC Does</div>
+                <div style="font-size: 13px; color: #94a3b8; line-height: 2;">
+                    1. Look up user (DB read) — 3ms<br>
+                    2. Save notification (DB write) — 5ms<br>
+                    3. <span class="highlight">Submit to queue (0.01ms)</span><br>
+                    4. <span class="highlight">Return response immediately</span><br>
+                    <strong style="color: #4ade80;">Total: ~8ms per request</strong><br>
+                    <span style="font-size: 12px;">Email sent in background by notif-async-* thread</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== 9. HOW IT HANDLES HIGH TRAFFIC ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F680;</span> How It Handles High Traffic — Capacity Math</div>
+
+        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 16px;">
+            Let's calculate exact capacity for different traffic levels:
+        </p>
+
+        <table class="scenario-table">
+            <thead>
+                <tr>
+                    <th>Traffic Level</th>
+                    <th>Incoming Rate</th>
+                    <th>Active Threads</th>
+                    <th>Queue Usage</th>
+                    <th>Processing Rate</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Low</td>
+                    <td>10 req/sec</td>
+                    <td>1-2 of 10 core</td>
+                    <td>0 (empty)</td>
+                    <td>100/sec capacity</td>
+                    <td class="highlight">&#x2705; Healthy</td>
+                </tr>
+                <tr>
+                    <td>Normal</td>
+                    <td>50 req/sec</td>
+                    <td>5-6 of 10 core</td>
+                    <td>0 (empty)</td>
+                    <td>100/sec capacity</td>
+                    <td class="highlight">&#x2705; Healthy</td>
+                </tr>
+                <tr>
+                    <td>High</td>
+                    <td>100 req/sec</td>
+                    <td>10 of 10 core</td>
+                    <td>~0 (slight buildup)</td>
+                    <td>100/sec capacity</td>
+                    <td style="color: #fbbf24;">&#x26A0; At capacity</td>
+                </tr>
+                <tr>
+                    <td>Spike</td>
+                    <td>500 req/sec</td>
+                    <td>10 core (busy)</td>
+                    <td>~400/sec accumulating</td>
+                    <td>100/sec draining</td>
+                    <td style="color: #fbbf24;">&#x26A0; Queue absorbing</td>
+                </tr>
+                <tr>
+                    <td>Extreme Spike<br>(25 seconds)</td>
+                    <td>500 req/sec × 25s</td>
+                    <td>10 core (busy)</td>
+                    <td>~10,000 (FULL)</td>
+                    <td>100/sec draining</td>
+                    <td class="danger">&#x1F534; Queue full → burst threads</td>
+                </tr>
+                <tr>
+                    <td>Beyond Extreme</td>
+                    <td>500 req/sec</td>
+                    <td>50 max (all busy)</td>
+                    <td>10,000 (FULL)</td>
+                    <td>500/sec capacity</td>
+                    <td style="color: #fbbf24;">&#x26A0; CallerRunsPolicy kicks in</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div style="font-size: 13px; color: #94a3b8; line-height: 1.8; margin-top: 16px;">
+            <strong style="color: #f8fafc;">Processing rate formula:</strong>
+            <div class="code-block" style="padding: 14px 20px; margin: 8px 0;">
+<span class="cmt">// Each notification takes ~100ms (simulated external API call)</span>
+<span class="cmt">// So each thread can process 1000ms / 100ms = 10 notifications/sec</span>
+
+<span class="type">Processing Rate</span> = <span class="var">activeThreads</span> × (<span class="num">1000</span> / <span class="var">avgProcessingTimeMs</span>)
+
+<span class="cmt">// With 10 core threads:  10 × 10 = 100 notifications/sec</span>
+<span class="cmt">// With 50 max threads:   50 × 10 = 500 notifications/sec</span>
+<span class="cmt">// With real APIs (500ms): 10 × 2  = 20 notifications/sec (core)</span>
+<span class="cmt">//                        50 × 2  = 100 notifications/sec (burst)</span>
+            </div>
+        </div>
+
+        <div class="info-green">
+            <strong>Total system capacity before any data loss:</strong>
+            <br>Queue (10,000 tasks) + burst processing (50 threads × 10/sec = 500/sec) + CallerRunsPolicy (backpressure, never drops).
+            <br><strong>Result: Zero notifications are ever lost, regardless of traffic level.</strong>
+        </div>
+    </div>
+
+    <!-- ========== 10. DB CONNECTION POOL ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F5C4;</span> HikariCP: The Database Connection Pool</div>
+
+        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 16px;">
+            Every DB operation (save notification, update status, lookup user) requires a <strong>database connection</strong>.
+            Spring Boot auto-configures <strong>HikariCP</strong> as the connection pool — the fastest Java connection pool.
+        </p>
+
+        <div class="code-block">
+            <div class="file-tag">application.properties (current defaults)</div>
+<span class="cmt"># H2 Database (current — will be replaced with PostgreSQL)</span>
+<span class="prop">spring.datasource.url</span>=<span class="str">jdbc:h2:mem:notificationdb</span>
+<span class="prop">spring.datasource.driverClassName</span>=<span class="str">org.h2.Driver</span>
+
+<span class="cmt"># HikariCP defaults (not explicitly set — Spring Boot defaults):</span>
+<span class="cmt"># spring.datasource.hikari.maximum-pool-size = 10</span>
+<span class="cmt"># spring.datasource.hikari.minimum-idle = 10 (same as max)</span>
+<span class="cmt"># spring.datasource.hikari.idle-timeout = 600000 (10 min)</span>
+<span class="cmt"># spring.datasource.hikari.connection-timeout = 30000 (30 sec)</span>
+<span class="cmt"># spring.datasource.hikari.max-lifetime = 1800000 (30 min)</span>
+        </div>
+
+        <div style="font-size: 13px; color: #94a3b8; line-height: 1.8; margin-top: 16px;">
+            <strong style="color: #f8fafc;">How connections are shared between pools:</strong>
+        </div>
+
+        <div class="diagram-box">
+    ┌───────────────────────────────────────────────────────────────────┐
+    │                     <span style="color:#fbbf24;">HikariCP Connection Pool (10 connections)</span>      │
+    │                                                                   │
+    │   ┌───┐ ┌───┐ ┌───┐ ┌───┐ ┌───┐ ┌───┐ ┌───┐ ┌───┐ ┌───┐ ┌───┐│
+    │   │ 1 │ │ 2 │ │ 3 │ │ 4 │ │ 5 │ │ 6 │ │ 7 │ │ 8 │ │ 9 │ │10 ││
+    │   └─┬─┘ └─┬─┘ └─┬─┘ └─┬─┘ └─┬─┘ └─┬─┘ └─┬─┘ └─┬─┘ └─┬─┘ └─┬─┘│
+    └─────┼─────┼─────┼─────┼─────┼─────┼─────┼─────┼─────┼─────┼───┘
+          │     │     │     │     │     │     │     │     │     │
+          ▼     ▼     ▼     ▼     ▼     ▼     ▼     ▼     ▼     ▼
+    <span style="color:#38bdf8;">Tomcat</span>  <span style="color:#38bdf8;">Tomcat</span>  <span style="color:#38bdf8;">Tomcat</span>  <span style="color:#a78bfa;">Async</span>   <span style="color:#a78bfa;">Async</span>   <span style="color:#a78bfa;">Async</span>   <span style="color:#a78bfa;">Async</span>   <span style="color:#a78bfa;">Async</span>   <span style="color:#fbbf24;">Sched</span>   <span style="color:#fbbf24;">Sched</span>
+    <span style="color:#38bdf8;">Thread</span>  <span style="color:#38bdf8;">Thread</span>  <span style="color:#38bdf8;">Thread</span>  <span style="color:#a78bfa;">Thread</span>  <span style="color:#a78bfa;">Thread</span>  <span style="color:#a78bfa;">Thread</span>  <span style="color:#a78bfa;">Thread</span>  <span style="color:#a78bfa;">Thread</span>  <span style="color:#fbbf24;">Thread</span>  <span style="color:#fbbf24;">Thread</span>
+
+    <span style="color:#475569;">Tomcat threads: save notification (PENDING) + lookup user</span>
+    <span style="color:#475569;">Async threads:  update status (PROCESSING → SENT/FAILED)</span>
+    <span style="color:#475569;">Scheduler:      retry failed, process recurrences</span>
+        </div>
+
+        <div class="info-yellow">
+            <strong>Important:</strong> Async threads only hold a DB connection <strong>briefly</strong> (~3-5ms for each save).
+            Between DB operations, the thread is doing the external API call (100ms) and does NOT hold a connection.
+            Spring's <code>@Transactional</code> releases the connection back to the pool after each transactional method.
+            This means 10 DB connections can serve 50 async threads efficiently.
+        </div>
+    </div>
+
+    <!-- ========== 11. THREAD COUNT SELECTION GUIDE ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F3AF;</span> Thread Count Selection: How to Choose the Right Numbers</div>
+
+        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 20px;">
+            Thread pool sizing depends on the <strong>type of work</strong> your threads are doing.
+            Here's the decision framework:
+        </p>
+
+        <div class="two-col">
+            <div class="col-card" style="background: #1e1b4b33; border: 1px solid #1e1b4b55;">
+                <div style="font-size: 12px; font-weight: 700; color: #a5b4fc; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px;">CPU-Bound Work</div>
+                <div style="font-size: 13px; color: #94a3b8; line-height: 1.8;">
+                    Threads doing computation (encryption, compression, JSON processing).<br><br>
+                    <strong>Formula:</strong><br>
+                    <code>threads = CPU cores</code> or <code>CPU cores + 1</code><br><br>
+                    <strong>Why:</strong> More threads than cores = context switching waste.
+                    Each thread runs at 100% CPU; adding more just slows everyone down.<br><br>
+                    <strong>Example:</strong> 8-core machine → 8-9 threads max.
+                </div>
+            </div>
+            <div class="col-card" style="background: #14532d33; border: 1px solid #14532d55;">
+                <div style="font-size: 12px; font-weight: 700; color: #86efac; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px;">I/O-Bound Work ← Our Case</div>
+                <div style="font-size: 13px; color: #94a3b8; line-height: 1.8;">
+                    Threads waiting on external calls (HTTP APIs, DB, file I/O).<br><br>
+                    <strong>Formula:</strong><br>
+                    <code>threads = CPU cores × (1 + wait_time / compute_time)</code><br><br>
+                    <strong>For our case:</strong><br>
+                    CPU cores = 8, wait = 100ms (email API), compute = ~5ms (DB).<br>
+                    <code>8 × (1 + 100/5) = 8 × 21 = 168 threads</code><br><br>
+                    <strong>But we use 10-50.</strong> Why? Because DB connection pool (10) is the bottleneck, not CPU.
+                    More threads would just wait for DB connections.
+                </div>
+            </div>
+        </div>
+
+        <div style="background: #0f172a; border: 1px solid #293548; border-radius: 12px; padding: 24px; margin-top: 20px;">
+            <h4 style="font-size: 14px; color: #f8fafc; margin-bottom: 14px;">Our Specific Choices Explained</h4>
+            <table class="scenario-table">
+                <thead>
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Value</th>
+                        <th>Reasoning</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>corePoolSize</td>
+                        <td style="color: #a78bfa; font-weight: 700;">10</td>
+                        <td>= HikariCP max connections. Each core thread can always get a DB connection without waiting.</td>
+                    </tr>
+                    <tr>
+                        <td>maxPoolSize</td>
+                        <td style="color: #a78bfa; font-weight: 700;">50</td>
+                        <td>5× core for burst handling. Burst threads spend 95% of time in external API call (no DB needed).
+                            Only briefly need a DB connection for status update.</td>
+                    </tr>
+                    <tr>
+                        <td>queueCapacity</td>
+                        <td style="color: #a78bfa; font-weight: 700;">10,000</td>
+                        <td>= 100 seconds of traffic at processing capacity (100/sec). Absorbs any realistic spike.</td>
+                    </tr>
+                    <tr>
+                        <td>HikariCP pool</td>
+                        <td style="color: #fbbf24; font-weight: 700;">10 (default)</td>
+                        <td>H2 in-memory DB is fast (~1ms per query). 10 connections handle thousands of requests/sec.
+                            For PostgreSQL, increase to 20-30.</td>
+                    </tr>
+                    <tr>
+                        <td>Tomcat threads</td>
+                        <td style="color: #38bdf8; font-weight: 700;">200 (default)</td>
+                        <td>Each HTTP request uses a Tomcat thread for ~8ms (async), so 200 threads can handle
+                            <code>200 × (1000/8) = 25,000 req/sec</code>. Not the bottleneck.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ========== 12. SCALING GUIDE ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F4C8;</span> Production Scaling Guide</div>
+
+        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 16px;">
+            When moving to production with real email APIs (200-2000ms latency) and PostgreSQL, adjust these values:
+        </p>
+
+        <table class="scenario-table">
+            <thead>
+                <tr>
+                    <th>Parameter</th>
+                    <th>Current (Dev)</th>
+                    <th>Production (Recommended)</th>
+                    <th>Why</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>corePoolSize</td>
+                    <td>10</td>
+                    <td style="color: #86efac; font-weight: 700;">25</td>
+                    <td>Match increased DB pool. Real API calls take 500ms+, need more concurrent threads.</td>
+                </tr>
+                <tr>
+                    <td>maxPoolSize</td>
+                    <td>50</td>
+                    <td style="color: #86efac; font-weight: 700;">100</td>
+                    <td>Real external APIs are 5-20× slower. Need more burst threads to maintain throughput.</td>
+                </tr>
+                <tr>
+                    <td>queueCapacity</td>
+                    <td>10,000</td>
+                    <td style="color: #86efac; font-weight: 700;">50,000</td>
+                    <td>Longer processing time per notification = slower drain rate = bigger queue needed.</td>
+                </tr>
+                <tr>
+                    <td>HikariCP pool</td>
+                    <td>10</td>
+                    <td style="color: #86efac; font-weight: 700;">25-30</td>
+                    <td>PostgreSQL can handle 100+ connections. Match core thread count.</td>
+                </tr>
+                <tr>
+                    <td>Tomcat threads</td>
+                    <td>200</td>
+                    <td style="color: #94a3b8;">200 (keep default)</td>
+                    <td>Async makes Tomcat threads fast (~8ms each). 200 is more than enough.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="info-red" style="margin-top: 16px;">
+            <strong>Warning: Anti-pattern to avoid</strong><br>
+            Don't set <code>corePoolSize = 200</code> thinking "more threads = more speed". This causes:
+            <br>• 200 threads competing for 10 DB connections = 190 threads always waiting
+            <br>• Massive context switching overhead
+            <br>• Memory waste (200 × 1MB = 200MB of stack space)
+            <br>• <strong>Rule: threads should never exceed your slowest shared resource (DB connections)
+            by more than 5-10×.</strong>
+        </div>
+    </div>
+
+    <!-- ========== 13. ERROR HANDLING IN ASYNC ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F6E1;</span> Error Handling in Async Mode</div>
+
+        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 16px;">
+            Since the HTTP response is already sent by the time the email is processed, failures must be handled differently:
+        </p>
+
+        <div class="flow-step">
+            <div class="flow-num">1</div>
+            <div class="flow-content">
+                <strong>Exception in channel handler</strong><br>
+                If <code>handler.send(notification)</code> throws, the catch block sets status to <code>FAILED</code>
+                with the failure reason and saves to DB. The notification is <strong>never lost</strong>.
+            </div>
+
+            <div class="flow-num">2</div>
+            <div class="flow-content">
+                <strong>Automatic retry via RetryService</strong><br>
+                The catch block calls <code>retryService.retryNotification(notification)</code> which uses
+                <strong>exponential backoff</strong> (1s → 2s → 4s) up to <code>maxRetries=3</code>.
+            </div>
+
+            <div class="flow-num">3</div>
+            <div class="flow-content">
+                <strong>Permanent failure tracking</strong><br>
+                After 3 failed retries, the notification is marked <code>FAILED</code> permanently with the
+                <code>failureReason</code> recorded in the database. Ops team can query failed notifications.
+            </div>
+
+            <div class="flow-num">4</div>
+            <div class="flow-content">
+                <strong>Scheduled retry sweep</strong><br>
+                A <code>@Scheduled</code> job runs periodically, finds all <code>FAILED</code> notifications that
+                haven't exceeded max retries, and processes them again. This catches edge cases like thread pool
+                shutdown during processing.
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== REPOS ========== -->
+    <div class="section">
+        <div class="section-title"><span class="icon">&#x1F517;</span> Source Code</div>
+        <div style="font-size: 13px; color: #94a3b8; line-height: 2.2;">
+            <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 16px;">
+                <code>AsyncConfig.java</code>
+                <span>Thread pool configuration — all parameters discussed here</span>
+                <code>NotificationProcessingService.java</code>
+                <span>@Async method + synchronous processNotification logic</span>
+                <code>NotificationService.java</code>
+                <span>Caller — saves to DB then submits async task</span>
+                <code>NotificationSystemApplication.java</code>
+                <span>@EnableAsync annotation</span>
+                <code>application.properties</code>
+                <span>Externalized pool size, queue capacity values</span>
+                <code>RetryService.java</code>
+                <span>Exponential backoff retry for failed async notifications</span>
+            </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px;">
+            <div style="background: #0f172a; border-radius: 10px; padding: 14px 18px; border: 1px solid #14532d55;">
+                <div style="font-size: 11px; color: #4ade80; text-transform: uppercase; letter-spacing: 0.5px;">Async Repository</div>
+                <div style="font-size: 12px; color: #94a3b8; margin-top: 4px; word-break: break-all;">
+                    https://github.com/Ashskyte/Notification-Service-With-Scale.git
+                </div>
+            </div>
+            <div style="background: #0f172a; border-radius: 10px; padding: 14px 18px; border: 1px solid #7f1d1d55;">
+                <div style="font-size: 11px; color: #f87171; text-transform: uppercase; letter-spacing: 0.5px;">Sync Repository (Baseline)</div>
+                <div style="font-size: 12px; color: #94a3b8; margin-top: 4px; word-break: break-all;">
+                    https://github.com/Ashskyte/Notification-Service-Sync.git
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="text-align: center; margin-top: 40px; padding-top: 24px; border-top: 1px solid #1e293b; font-size: 12px; color: #475569;">
+        Notification System &bull; Async Thread Pool &amp; Connection Pooling Deep Dive &bull; March 2026
+    </div>
+
+</div>
+</body>
+</html>
