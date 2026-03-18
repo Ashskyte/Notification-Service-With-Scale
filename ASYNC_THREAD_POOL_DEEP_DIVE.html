@@ -60,6 +60,7 @@
             overflow-x: auto;
             margin: 16px 0;
             position: relative;
+            white-space: pre;
         }
         .code-block .file-tag {
             position: absolute;
@@ -269,8 +270,7 @@
                                │  Shared by ALL threads  │
                                │  Tomcat + Async threads  │
                                │  all compete for conns   │
-                               └──────────────────────┘
-        </div>
+                               └──────────────────────┘</div>
     </div>
 
     <!-- ========== 2. FILE-BY-FILE WALKTHROUGH ========== -->
@@ -282,8 +282,7 @@
             Without this, <code>@Async</code> annotations are silently ignored and everything runs synchronously.
         </p>
 
-        <div class="code-block">
-            <div class="file-tag">NotificationSystemApplication.java</div>
+        <div class="code-block"><div class="file-tag">NotificationSystemApplication.java</div>
 <span class="ann">@SpringBootApplication</span>
 <span class="ann">@EnableScheduling</span>
 <span class="ann">@EnableAsync</span>              <span class="cmt">// ← THIS activates async proxy support</span>
@@ -291,8 +290,7 @@
     <span class="kw">public static void</span> <span class="method">main</span>(<span class="type">String</span>[] args) {
         <span class="type">SpringApplication</span>.<span class="method">run</span>(<span class="type">NotificationSystemApplication</span>.<span class="kw">class</span>, args);
     }
-}
-        </div>
+}</div>
 
         <div class="info-blue">
             <strong>What @EnableAsync does internally:</strong> Spring creates a proxy around any bean that has <code>@Async</code> methods.
@@ -310,8 +308,7 @@
             bean with carefully chosen parameters. Every line matters.
         </p>
 
-        <div class="code-block">
-            <div class="file-tag">AsyncConfig.java</div>
+        <div class="code-block"><div class="file-tag">AsyncConfig.java</div>
 <span class="ann">@Slf4j</span>
 <span class="ann">@Configuration</span>
 <span class="kw">public class</span> <span class="type">AsyncConfig</span> {
@@ -346,8 +343,7 @@
         executor.<span class="method">initialize</span>();
         <span class="kw">return</span> executor;
     }
-}
-        </div>
+}</div>
     </div>
 
     <!-- ========== 4. EACH PARAMETER EXPLAINED ========== -->
@@ -556,8 +552,7 @@
                                 │ temporary│ │ CallerRunsPolicy │
                                 │ thread   │ │ → caller thread  │
                                 │ (11-50)  │ │   runs the task  │
-                                └──────────┘ └──────────────────┘
-        </div>
+                                └──────────┘ └──────────────────┘</div>
 
         <div class="info-yellow">
             <strong>Key insight:</strong> The pool fills the <strong>queue FIRST</strong> before creating extra threads.
@@ -575,8 +570,7 @@
             without recompiling the code — essential for tuning in production.
         </p>
 
-        <div class="code-block">
-            <div class="file-tag">application.properties</div>
+        <div class="code-block"><div class="file-tag">application.properties</div>
 <span class="cmt"># Async Thread Pool Configuration</span>
 <span class="prop">notification.async.core-pool-size</span>=<span class="num">10</span>     <span class="cmt"># Always-alive threads</span>
 <span class="prop">notification.async.max-pool-size</span>=<span class="num">50</span>      <span class="cmt"># Burst capacity</span>
@@ -584,8 +578,7 @@
 
 <span class="cmt"># These are injected via @Value in AsyncConfig.java</span>
 <span class="cmt"># Defaults are specified after the colon: ${property:default}</span>
-<span class="cmt"># If the property is missing, the default is used</span>
-        </div>
+<span class="cmt"># If the property is missing, the default is used</span></div>
 
         <div class="info-green">
             <strong>Production tip:</strong> You can override these at deploy time without changing code:
@@ -603,8 +596,7 @@
             tells Spring to run this method on the <code>notificationTaskExecutor</code> pool instead of the caller's thread.
         </p>
 
-        <div class="code-block">
-            <div class="file-tag">NotificationProcessingService.java</div>
+        <div class="code-block"><div class="file-tag">NotificationProcessingService.java</div>
 <span class="ann">@Async</span>(<span class="str">"notificationTaskExecutor"</span>)   <span class="cmt">// ← Run on our custom thread pool</span>
 <span class="ann">@Transactional</span>
 <span class="kw">public</span> <span class="type">CompletableFuture</span>&lt;<span class="type">Void</span>&gt; <span class="method">processNotificationAsync</span>(<span class="type">Notification</span> notification) {
@@ -632,8 +624,7 @@
         notificationRepository.<span class="method">save</span>(notification);       <span class="cmt">// DB write (failure)</span>
         retryService.<span class="method">retryNotification</span>(notification);     <span class="cmt">// Auto-retry</span>
     }
-}
-        </div>
+}</div>
 
         <div class="info-blue">
             <strong>Why CompletableFuture&lt;Void&gt; and not void?</strong>
@@ -651,8 +642,7 @@
             This is where the Tomcat HTTP thread <strong>hands off work</strong> and returns immediately.
         </p>
 
-        <div class="code-block">
-            <div class="file-tag">NotificationService.java (sendNotification method)</div>
+        <div class="code-block"><div class="file-tag">NotificationService.java (sendNotification method)</div>
 <span class="ann">@Transactional</span>
 <span class="kw">public</span> <span class="type">NotificationResponse</span> <span class="method">sendNotification</span>(<span class="type">SendNotificationRequest</span> request) {
     <span class="type">User</span> user = userService.<span class="method">findUserById</span>(request.<span class="method">getUserId</span>());    <span class="cmt">// DB read</span>
@@ -675,8 +665,7 @@
 
     <span class="cmt">// This line executes in ~0.01ms, NOT after email is sent</span>
     <span class="kw">return</span> <span class="type">NotificationResponse</span>.<span class="method">fromEntity</span>(notification);
-}
-        </div>
+}</div>
 
         <div class="two-col">
             <div class="col-card col-sync">
@@ -786,8 +775,7 @@
 <span class="cmt">// With 10 core threads:  10 × 10 = 100 notifications/sec</span>
 <span class="cmt">// With 50 max threads:   50 × 10 = 500 notifications/sec</span>
 <span class="cmt">// With real APIs (500ms): 10 × 2  = 20 notifications/sec (core)</span>
-<span class="cmt">//                        50 × 2  = 100 notifications/sec (burst)</span>
-            </div>
+<span class="cmt">//                        50 × 2  = 100 notifications/sec (burst)</span></div>
         </div>
 
         <div class="info-green">
@@ -806,8 +794,7 @@
             Spring Boot auto-configures <strong>HikariCP</strong> as the connection pool — the fastest Java connection pool.
         </p>
 
-        <div class="code-block">
-            <div class="file-tag">application.properties (current defaults)</div>
+        <div class="code-block"><div class="file-tag">application.properties (current defaults)</div>
 <span class="cmt"># H2 Database (current — will be replaced with PostgreSQL)</span>
 <span class="prop">spring.datasource.url</span>=<span class="str">jdbc:h2:mem:notificationdb</span>
 <span class="prop">spring.datasource.driverClassName</span>=<span class="str">org.h2.Driver</span>
@@ -817,8 +804,7 @@
 <span class="cmt"># spring.datasource.hikari.minimum-idle = 10 (same as max)</span>
 <span class="cmt"># spring.datasource.hikari.idle-timeout = 600000 (10 min)</span>
 <span class="cmt"># spring.datasource.hikari.connection-timeout = 30000 (30 sec)</span>
-<span class="cmt"># spring.datasource.hikari.max-lifetime = 1800000 (30 min)</span>
-        </div>
+<span class="cmt"># spring.datasource.hikari.max-lifetime = 1800000 (30 min)</span></div>
 
         <div style="font-size: 13px; color: #94a3b8; line-height: 1.8; margin-top: 16px;">
             <strong style="color: #f8fafc;">How connections are shared between pools:</strong>
@@ -839,8 +825,7 @@
 
     <span style="color:#475569;">Tomcat threads: save notification (PENDING) + lookup user</span>
     <span style="color:#475569;">Async threads:  update status (PROCESSING → SENT/FAILED)</span>
-    <span style="color:#475569;">Scheduler:      retry failed, process recurrences</span>
-        </div>
+    <span style="color:#475569;">Scheduler:      retry failed, process recurrences</span></div>
 
         <div class="info-yellow">
             <strong>Important:</strong> Async threads only hold a DB connection <strong>briefly</strong> (~3-5ms for each save).
