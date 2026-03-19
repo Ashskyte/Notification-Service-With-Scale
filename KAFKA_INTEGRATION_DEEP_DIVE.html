@@ -1236,42 +1236,219 @@ notification.kafka.consumer.concurrency=<span class="num">3</span></div>
 
 <!-- ═══════════════ 15. HOW TO RUN ═══════════════ -->
 <div class="section">
-    <div class="section-title"><span class="section-num">15</span> How to Run Kafka Locally</div>
+    <div class="section-title"><span class="section-num">15</span> How to Run Kafka Locally &mdash; Podman Setup</div>
 
-    <div class="step">
-        <div class="step-num">1</div>
-        <div class="step-body">
-            <strong>Start Kafka using Docker (simplest approach)</strong><br>
-            <code>docker run -d --name kafka -p 9092:9092 apache/kafka:3.6.1</code>
-        </div>
+    <p>We use <strong>Podman</strong> (a drop-in Docker replacement) to run Kafka and Kafka UI locally.
+       Both containers run inside a <strong>Podman Pod</strong> so they share the same network namespace &mdash;
+       <code>localhost</code> works between them just like processes on the same machine.</p>
+
+    <div class="section-subtitle">Step 1 &mdash; Create a Podman Pod</div>
+    <p>A pod groups multiple containers together with shared networking. We expose two ports:
+       <code>9092</code> for Kafka broker and <code>8090</code> for Kafka UI web dashboard.</p>
+
+    <div class="code-block"><div class="file-tag">Terminal — Create Pod</div>
+<span class="cmt"># Create a pod with Kafka + Kafka UI ports exposed</span>
+podman pod create --name kafka-pod -p <span class="num">9092</span>:<span class="num">9092</span> -p <span class="num">8090</span>:<span class="num">8080</span></div>
+
+    <div class="section-subtitle">Step 2 &mdash; Start Apache Kafka Broker (KRaft mode &mdash; No Zookeeper)</div>
+    <p>We use the official <code>apache/kafka</code> image which runs in <strong>KRaft mode</strong> &mdash;
+       no Zookeeper dependency required. Single broker, perfect for local development.</p>
+
+    <div class="code-block"><div class="file-tag">Terminal — Start Kafka Broker</div>
+<span class="cmt"># Start Kafka broker inside the pod</span>
+podman run -d --pod kafka-pod --name kafka apache/kafka:<span class="num">3.7.0</span>
+
+<span class="cmt"># Verify Kafka is running</span>
+podman ps --filter name=kafka
+
+<span class="cmt"># Check Kafka broker logs (look for "started" message)</span>
+podman logs kafka <span class="num">2</span>>&amp;<span class="num">1</span> | Select-Object -Last <span class="num">10</span></div>
+
+    <div class="alert alert-green">
+        <strong>KRaft mode (Kafka Raft):</strong> Starting with Kafka 3.3+, Zookeeper is no longer required.
+        Kafka manages its own metadata via the Raft consensus protocol. This means our setup needs only
+        <strong>one container</strong> instead of two — simpler, faster, less resource usage.
     </div>
-    <div class="step">
-        <div class="step-num">2</div>
-        <div class="step-body">
-            <strong>Start the Spring Boot application</strong><br>
-            <code>mvn spring-boot:run</code><br>
-            Topics are auto-created by the <code>NewTopic</code> beans in <code>KafkaConfig.java</code>.
-        </div>
-    </div>
-    <div class="step">
-        <div class="step-num">3</div>
-        <div class="step-body">
-            <strong>Send a test notification</strong><br>
-            <code>POST http://localhost:8080/api/notifications/send</code> with your JSON payload.
-        </div>
-    </div>
-    <div class="step">
-        <div class="step-num">4</div>
-        <div class="step-body">
-            <strong>Monitor Kafka topics (optional)</strong><br>
-            <code>docker exec kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic notification-send --from-beginning</code>
-        </div>
-    </div>
+
+    <div class="section-subtitle">Step 3 &mdash; Start Kafka UI (Web Dashboard)</div>
+    <p><strong>Kafka UI</strong> is a web-based tool for browsing topics, messages, consumer groups,
+       partitions, and offsets — all from your browser. It connects to the Kafka broker via <code>localhost:9092</code>
+       (shared networking within the pod).</p>
+
+    <div class="code-block"><div class="file-tag">Terminal — Start Kafka UI</div>
+<span class="cmt"># Start Kafka UI inside the same pod</span>
+podman run -d --pod kafka-pod --name kafka-ui \
+  -e DYNAMIC_CONFIG_ENABLED=<span class="str">true</span> \
+  -e KAFKA_CLUSTERS_0_NAME=<span class="str">local</span> \
+  -e KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=<span class="str">localhost:9092</span> \
+  provectuslabs/kafka-ui:latest
+
+<span class="cmt"># For Windows PowerShell (single line):</span>
+podman run -d --pod kafka-pod --name kafka-ui -e DYNAMIC_CONFIG_ENABLED=<span class="str">true</span> -e KAFKA_CLUSTERS_0_NAME=<span class="str">local</span> -e KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=<span class="str">localhost:9092</span> provectuslabs/kafka-ui:latest</div>
 
     <div class="alert alert-blue">
-        <strong>Coming next:</strong> The Docker/containerization step (#5 in our roadmap) will include a
-        <code>docker-compose.yml</code> with Kafka, Zookeeper, and the Spring Boot application pre-configured
-        for one-command startup.
+        <strong>Open Kafka UI:</strong> Navigate to <code>http://localhost:8090</code> in your browser.<br>
+        You'll see: Dashboard, Topics, Consumers, Schema Registry, and more.
+    </div>
+
+    <div class="section-subtitle">Step 4 &mdash; Start the Spring Boot Application</div>
+
+    <div class="code-block"><div class="file-tag">Terminal — Start Spring Boot</div>
+<span class="cmt"># Set JAVA_HOME (if needed) and start the application</span>
+$env:JAVA_HOME = <span class="str">"C:\Program Files\OpenLogic\jdk-21.0.4.7-hotspot"</span>
+mvn spring-boot:run
+
+<span class="cmt"># When you see this in the logs, Kafka consumers are connected:</span>
+<span class="cmt"># "Stabilized group notification-group generation X with 6 members"</span>
+<span class="cmt"># Topics auto-created by KafkaConfig.java NewTopic beans:</span>
+<span class="cmt">#   notification-send (3 partitions)</span>
+<span class="cmt">#   notification-retry (3 partitions)</span>
+<span class="cmt">#   notification-send.DLT (1 partition)</span>
+<span class="cmt">#   notification-retry.DLT (1 partition)</span></div>
+
+    <div class="section-subtitle">Step 5 &mdash; Send a Test Notification</div>
+
+    <div class="code-block"><div class="file-tag">Terminal — Test the Full Kafka Flow</div>
+<span class="cmt"># Send a notification via HTTP POST (PowerShell)</span>
+Invoke-RestMethod `
+  -Uri <span class="str">"http://localhost:8080/api/notifications/send"</span> `
+  -Method POST `
+  -ContentType <span class="str">"application/json"</span> `
+  -Body <span class="str">'{"userId": 1, "title": "Kafka Test", "message": "Hello from Kafka!", "channel": "EMAIL"}'</span> `
+  | ConvertTo-Json
+
+<span class="cmt"># Expected response: status = "PENDING" (Kafka will process asynchronously)</span>
+
+<span class="cmt"># Check the notification was processed (after a few seconds)</span>
+Invoke-RestMethod -Uri <span class="str">"http://localhost:8080/api/notifications/1"</span> -Method GET | ConvertTo-Json
+
+<span class="cmt"># Expected: status = "SENT", sentAt = timestamp</span></div>
+
+    <div class="section-subtitle">Step 6 &mdash; Observe in Kafka UI</div>
+
+    <div class="grid-2">
+        <div class="card card-blue">
+            <div class="card-label card-label-blue">What to check in Kafka UI</div>
+            <div class="text-sm" style="color: #94a3b8; line-height: 2.2;">
+                <strong>Topics page:</strong> See all 4 topics created with partition counts<br>
+                <strong>notification-send &rarr; Messages:</strong> Click to see the JSON event payloads flowing through<br>
+                <strong>Consumers page:</strong> View <code>notification-group</code> with 3 members, partition assignments<br>
+                <strong>Consumer lag:</strong> Shows how many messages are waiting to be processed<br>
+                <strong>DLT topics:</strong> Check <code>notification-send.DLT</code> for any permanently failed messages
+            </div>
+        </div>
+        <div class="card card-purple">
+            <div class="card-label card-label-purple">Kafka UI URLs</div>
+            <div class="text-sm" style="color: #94a3b8; line-height: 2.2;">
+                <strong>Dashboard:</strong> <code>http://localhost:8090</code><br>
+                <strong>Topics:</strong> <code>http://localhost:8090/ui/clusters/local/all-topics</code><br>
+                <strong>Consumers:</strong> <code>http://localhost:8090/ui/clusters/local/consumer-groups</code><br>
+                <strong>Messages:</strong> Click any topic &rarr; Messages tab &rarr; see JSON events<br>
+                <strong>Brokers:</strong> <code>http://localhost:8090/ui/clusters/local/brokers</code>
+            </div>
+        </div>
+    </div>
+
+    <div class="section-subtitle">Kafka CLI Commands (Optional &mdash; Advanced Debugging)</div>
+
+    <div class="code-block"><div class="file-tag">Terminal — Kafka CLI via Podman</div>
+<span class="cmt"># List all topics</span>
+podman exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:<span class="num">9092</span> --list
+
+<span class="cmt"># Describe a topic (partitions, replicas, ISR)</span>
+podman exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:<span class="num">9092</span> --describe --topic notification-send
+
+<span class="cmt"># Read messages from notification-send topic (live tail)</span>
+podman exec kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:<span class="num">9092</span> --topic notification-send --from-beginning
+
+<span class="cmt"># Read messages from Dead Letter Topic</span>
+podman exec kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:<span class="num">9092</span> --topic notification-send.DLT --from-beginning
+
+<span class="cmt"># Check consumer group offsets and lag</span>
+podman exec kafka /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server localhost:<span class="num">9092</span> --group notification-group --describe</div>
+
+    <div class="section-subtitle">Stop &amp; Clean Up Everything</div>
+
+    <div class="code-block"><div class="file-tag">Terminal — Teardown</div>
+<span class="cmt"># Stop the entire pod (Kafka + Kafka UI)</span>
+podman pod stop kafka-pod
+
+<span class="cmt"># Remove the pod and all its containers</span>
+podman pod rm kafka-pod
+
+<span class="cmt"># Verify nothing is running</span>
+podman ps -a</div>
+
+    <div class="section-subtitle">Quick Reference &mdash; All Commands in One Place</div>
+
+    <table class="tbl">
+        <thead><tr><th>Action</th><th>Command</th><th>Port</th></tr></thead>
+        <tbody>
+            <tr>
+                <td>Create Pod</td>
+                <td><code>podman pod create --name kafka-pod -p 9092:9092 -p 8090:8080</code></td>
+                <td>&mdash;</td>
+            </tr>
+            <tr>
+                <td>Start Kafka Broker</td>
+                <td><code>podman run -d --pod kafka-pod --name kafka apache/kafka:3.7.0</code></td>
+                <td><code>9092</code></td>
+            </tr>
+            <tr>
+                <td>Start Kafka UI</td>
+                <td><code>podman run -d --pod kafka-pod --name kafka-ui -e DYNAMIC_CONFIG_ENABLED=true -e KAFKA_CLUSTERS_0_NAME=local -e KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=localhost:9092 provectuslabs/kafka-ui:latest</code></td>
+                <td><code>8090</code></td>
+            </tr>
+            <tr>
+                <td>Start Spring Boot</td>
+                <td><code>mvn spring-boot:run</code></td>
+                <td><code>8080</code></td>
+            </tr>
+            <tr>
+                <td>Stop Everything</td>
+                <td><code>podman pod stop kafka-pod &amp;&amp; podman pod rm kafka-pod</code></td>
+                <td>&mdash;</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="diagram">
+<span class="diagram-title" style="color:#38bdf8;">PODMAN POD ARCHITECTURE — SHARED NETWORK</span>
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │                    kafka-pod                                 │
+  │              (shared localhost network)                      │
+  │                                                             │
+  │   ┌──────────────────────┐   ┌───────────────────────────┐ │
+  │   │    kafka              │   │    kafka-ui                │ │
+  │   │    (apache/kafka)     │   │    (provectuslabs/kafka-ui)│ │
+  │   │                      │   │                            │ │
+  │   │    Broker on :9092   │◀──│    Connects to             │ │
+  │   │                      │   │    localhost:9092           │ │
+  │   │    KRaft mode        │   │                            │ │
+  │   │    (no Zookeeper)    │   │    Web UI on :8080         │ │
+  │   └──────────────────────┘   └───────────────────────────┘ │
+  │                                                             │
+  │   Exposed to host:                                          │
+  │     localhost:9092 → Kafka Broker (Spring Boot connects)    │
+  │     localhost:8090 → Kafka UI (browser opens)               │
+  └─────────────────────────────────────────────────────────────┘
+
+  ┌──────────────────────────────────┐
+  │   Host Machine                   │
+  │                                  │
+  │   Spring Boot App (:8080)        │
+  │     └── connects to :9092        │
+  │                                  │
+  │   Browser                        │
+  │     └── opens http://localhost:8090 (Kafka UI)
+  │     └── opens http://localhost:8080 (API)
+  └──────────────────────────────────┘</div>
+
+    <div class="alert alert-green">
+        <strong>Why a Podman Pod?</strong> Containers in a pod share the same network namespace.
+        This means the Kafka UI container can reach the Kafka broker at <code>localhost:9092</code>
+        — just as if they were running on the same machine. No custom networks or IP addresses needed.
     </div>
 </div>
 
