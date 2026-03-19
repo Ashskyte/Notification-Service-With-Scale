@@ -39,4 +39,7 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     List<Notification> findByUserIdAndStatusIn(Long userId, List<NotificationStatus> statuses);
 
     long countByStatus(NotificationStatus status);
+
+    @Query("SELECT n FROM Notification n JOIN FETCH n.user WHERE n.id = :id")
+    java.util.Optional<Notification> findByIdWithUser(@Param("id") Long id);
 }

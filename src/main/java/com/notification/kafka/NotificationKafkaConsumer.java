@@ -28,7 +28,7 @@ public class NotificationKafkaConsumer {
         log.info("Consumed SEND event for notification [{}] from topic [notification-send]",
                 event.getNotificationId());
 
-        Notification notification = notificationRepository.findById(event.getNotificationId())
+        Notification notification = notificationRepository.findByIdWithUser(event.getNotificationId())
                 .orElseThrow(() -> {
                     log.error("Notification [{}] not found in DB — skipping", event.getNotificationId());
                     return new RuntimeException("Notification not found: " + event.getNotificationId());
@@ -46,7 +46,7 @@ public class NotificationKafkaConsumer {
         log.info("Consumed RETRY event for notification [{}] from topic [notification-retry]",
                 event.getNotificationId());
 
-        Notification notification = notificationRepository.findById(event.getNotificationId())
+        Notification notification = notificationRepository.findByIdWithUser(event.getNotificationId())
                 .orElseThrow(() -> {
                     log.error("Notification [{}] not found in DB for retry — skipping", event.getNotificationId());
                     return new RuntimeException("Notification not found: " + event.getNotificationId());
