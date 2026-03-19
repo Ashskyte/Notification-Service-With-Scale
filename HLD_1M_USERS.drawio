@@ -1,0 +1,332 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-03-19T09:30:00.000Z" agent="Cascade" version="24.0.0" type="device">
+  <diagram name="HLD - Notification System (1M Users)" id="hld-1m">
+    <mxGraphModel dx="1622" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1600" pageHeight="2000" math="0" shadow="1">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- ════════════ TITLE ════════════ -->
+        <mxCell id="title" value="&lt;font style=&quot;font-size:22px;color:#333;&quot;&gt;&lt;b&gt;Notification System &amp;mdash; High-Level Design for 1 Million Users&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px;color:#888;&quot;&gt;~120 req/sec avg &amp;bull; ~360 req/sec peak &amp;bull; 10K+ msg/sec Kafka capacity&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="250" y="5" width="900" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- ════════════ SECTION LABELS (left side) ════════════ -->
+        <mxCell id="L1" value="&lt;b&gt;CLIENTS&lt;/b&gt;" style="text;html=1;align=right;verticalAlign=middle;strokeColor=none;fillColor=none;fontColor=#6c8ebf;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="10" y="90" width="110" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="L2" value="&lt;b&gt;EDGE / CDN&lt;/b&gt;" style="text;html=1;align=right;verticalAlign=middle;strokeColor=none;fillColor=none;fontColor=#d79b00;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="10" y="200" width="110" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="L3" value="&lt;b&gt;API GATEWAY&lt;/b&gt;" style="text;html=1;align=right;verticalAlign=middle;strokeColor=none;fillColor=none;fontColor=#d79b00;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="10" y="310" width="110" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="L4" value="&lt;b&gt;LOAD BALANCER&lt;/b&gt;" style="text;html=1;align=right;verticalAlign=middle;strokeColor=none;fillColor=none;fontColor=#d79b00;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="10" y="420" width="110" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="L5" value="&lt;b&gt;APPLICATION&lt;/b&gt;" style="text;html=1;align=right;verticalAlign=middle;strokeColor=none;fillColor=none;fontColor=#82b366;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="10" y="545" width="110" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="L6" value="&lt;b&gt;KAFKA CLUSTER&lt;/b&gt;" style="text;html=1;align=right;verticalAlign=middle;strokeColor=none;fillColor=none;fontColor=#9673a6;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="10" y="710" width="110" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="L7" value="&lt;b&gt;CONSUMERS&lt;/b&gt;" style="text;html=1;align=right;verticalAlign=middle;strokeColor=none;fillColor=none;fontColor=#82b366;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="10" y="870" width="110" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="L8" value="&lt;b&gt;DATA LAYER&lt;/b&gt;" style="text;html=1;align=right;verticalAlign=middle;strokeColor=none;fillColor=none;fontColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="10" y="1020" width="110" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="L9" value="&lt;b&gt;DELIVERY&lt;/b&gt;" style="text;html=1;align=right;verticalAlign=middle;strokeColor=none;fillColor=none;fontColor=#666666;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="10" y="1170" width="110" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="L10" value="&lt;b&gt;OBSERVABILITY&lt;/b&gt;" style="text;html=1;align=right;verticalAlign=middle;strokeColor=none;fillColor=none;fontColor=#56a5c4;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="10" y="1305" width="110" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- ════════════ SECTION CONTAINERS (dashed groups) ════════════ -->
+        <mxCell id="SC1" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#6c8ebf;dashed=1;dashPattern=8 4;opacity=40;" vertex="1" parent="1">
+          <mxGeometry x="140" y="70" width="1120" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="SC3" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#d79b00;dashed=1;dashPattern=8 4;opacity=40;" vertex="1" parent="1">
+          <mxGeometry x="140" y="290" width="1120" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="SC5" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#82b366;dashed=1;dashPattern=8 4;opacity=40;" vertex="1" parent="1">
+          <mxGeometry x="140" y="515" width="1120" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="SC6" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#9673a6;dashed=1;dashPattern=8 4;opacity=40;" vertex="1" parent="1">
+          <mxGeometry x="140" y="685" width="1120" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="SC7" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#82b366;dashed=1;dashPattern=8 4;opacity=40;" vertex="1" parent="1">
+          <mxGeometry x="140" y="850" width="1120" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="SC8" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#d6b656;dashed=1;dashPattern=8 4;opacity=40;" vertex="1" parent="1">
+          <mxGeometry x="140" y="1000" width="1120" height="115" as="geometry"/>
+        </mxCell>
+        <mxCell id="SC9" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#666666;dashed=1;dashPattern=8 4;opacity=40;" vertex="1" parent="1">
+          <mxGeometry x="140" y="1150" width="1120" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="SC10" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#56a5c4;dashed=1;dashPattern=8 4;opacity=40;" vertex="1" parent="1">
+          <mxGeometry x="140" y="1290" width="1120" height="85" as="geometry"/>
+        </mxCell>
+
+        <!-- ════════════ 1. CLIENTS ════════════ -->
+        <mxCell id="C1" value="&lt;b&gt;Web Browsers&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;React / Angular&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="170" y="85" width="155" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="C2" value="&lt;b&gt;Mobile Apps&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;iOS / Android&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="385" y="85" width="155" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="C3" value="&lt;b&gt;IoT / Webhooks&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;Third-party triggers&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="600" y="85" width="155" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="C4" value="&lt;b&gt;1M+ Users&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;~120 req/sec avg&lt;/font&gt;" style="shape=cloud;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;shadow=1;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="840" y="75" width="190" height="85" as="geometry"/>
+        </mxCell>
+
+        <!-- ════════════ 2. CDN / EDGE ════════════ -->
+        <mxCell id="E1" value="&lt;b&gt;CloudFlare CDN&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;DNS | SSL Termination | DDoS Protection | Static Assets Cache&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="320" y="195" width="760" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- ════════════ 3. API GATEWAY ════════════ -->
+        <mxCell id="G1" value="&lt;b&gt;API Gateway&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;Kong / AWS API GW&lt;br&gt;Routing | Throttling | CORS&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="180" y="300" width="240" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="G2" value="&lt;b&gt;Rate Limiter&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;Token Bucket&lt;br&gt;1000 req/min per user&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="490" y="300" width="200" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="G3" value="&lt;b&gt;Auth Service&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;JWT Validation&lt;br&gt;OAuth 2.0 / RBAC&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="760" y="300" width="200" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="G4" value="&lt;b&gt;Request Validation&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;Schema | Sanitize&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1030" y="300" width="175" height="65" as="geometry"/>
+        </mxCell>
+
+        <!-- ════════════ 4. LOAD BALANCER ════════════ -->
+        <mxCell id="LB1" value="&lt;b&gt;Load Balancer (Nginx / AWS ALB)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;Round-Robin | Health Checks | Sticky Sessions | Auto-Scaling Triggers&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="320" y="415" width="760" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- ════════════ 5. APPLICATION INSTANCES ════════════ -->
+        <mxCell id="A1" value="&lt;b&gt;Spring Boot #1&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;REST API&lt;br&gt;Kafka Producer&lt;br&gt;Async Thread Pool&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="165" y="530" width="175" height="85" as="geometry"/>
+        </mxCell>
+        <mxCell id="A2" value="&lt;b&gt;Spring Boot #2&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;REST API&lt;br&gt;Kafka Producer&lt;br&gt;Async Thread Pool&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="385" y="530" width="175" height="85" as="geometry"/>
+        </mxCell>
+        <mxCell id="A3" value="&lt;b&gt;Spring Boot #3&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;REST API&lt;br&gt;Kafka Producer&lt;br&gt;Async Thread Pool&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="605" y="530" width="175" height="85" as="geometry"/>
+        </mxCell>
+        <mxCell id="A4" value="&lt;b&gt;Spring Boot #N&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;REST API&lt;br&gt;Kafka Producer&lt;br&gt;Async Thread Pool&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontSize=11;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="825" y="530" width="175" height="85" as="geometry"/>
+        </mxCell>
+        <mxCell id="A5" value="&lt;font style=&quot;font-size:10px;color:#82b366;&quot;&gt;&lt;b&gt;Auto-scaled&lt;/b&gt;&lt;br&gt;5-10 instances&lt;br&gt;based on CPU/req&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1050" y="545" width="120" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- ════════════ 6. KAFKA CLUSTER ════════════ -->
+        <mxCell id="K1" value="&lt;b&gt;Kafka Broker 1&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;KRaft mode&lt;br&gt;Partitions 0-9&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="170" y="705" width="180" height="75" as="geometry"/>
+        </mxCell>
+        <mxCell id="K2" value="&lt;b&gt;Kafka Broker 2&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;KRaft mode&lt;br&gt;Partitions 10-19&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="410" y="705" width="180" height="75" as="geometry"/>
+        </mxCell>
+        <mxCell id="K3" value="&lt;b&gt;Kafka Broker 3&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;KRaft mode&lt;br&gt;Partitions 20-29&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="650" y="705" width="180" height="75" as="geometry"/>
+        </mxCell>
+        <mxCell id="K4" value="&lt;font style=&quot;font-size:10px;color:#9673a6;&quot;&gt;&lt;b&gt;Topics:&lt;/b&gt;&lt;br&gt;notification-send (30 part)&lt;br&gt;notification-retry (30 part)&lt;br&gt;+ DLT topics&lt;br&gt;&lt;b&gt;10K+ msg/sec capacity&lt;/b&gt;&lt;br&gt;Replication factor = 3&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=top;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="880" y="695" width="220" height="100" as="geometry"/>
+        </mxCell>
+
+        <!-- ════════════ 7. CONSUMER INSTANCES ════════════ -->
+        <mxCell id="CO1" value="&lt;b&gt;Consumer Group #1&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;5 consumer threads&lt;br&gt;Kafka Consumer&lt;br&gt;DB Writer&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="170" y="865" width="200" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="CO2" value="&lt;b&gt;Consumer Group #2&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;5 consumer threads&lt;br&gt;Kafka Consumer&lt;br&gt;DB Writer&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="430" y="865" width="200" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="CO3" value="&lt;b&gt;Consumer Group #N&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;5 consumer threads&lt;br&gt;Kafka Consumer&lt;br&gt;DB Writer&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontSize=11;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="690" y="865" width="200" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="CO4" value="&lt;font style=&quot;font-size:10px;color:#82b366;&quot;&gt;&lt;b&gt;30 partitions =&lt;/b&gt;&lt;br&gt;30 parallel consumers&lt;br&gt;across N instances&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="950" y="870" width="180" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- ════════════ 8. DATA LAYER ════════════ -->
+        <mxCell id="D1" value="&lt;b&gt;PostgreSQL&lt;br&gt;Primary&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;Write traffic&lt;br&gt;WAL replication&lt;/font&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;shadow=1;fontSize=11;size=12;boundedLbl=1;" vertex="1" parent="1">
+          <mxGeometry x="170" y="1010" width="145" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="D2" value="&lt;b&gt;PG Read&lt;br&gt;Replica 1&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;Read traffic&lt;/font&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;shadow=1;fontSize=11;size=12;boundedLbl=1;" vertex="1" parent="1">
+          <mxGeometry x="365" y="1010" width="130" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="D3" value="&lt;b&gt;PG Read&lt;br&gt;Replica 2&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;Read traffic&lt;/font&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;shadow=1;fontSize=11;size=12;boundedLbl=1;" vertex="1" parent="1">
+          <mxGeometry x="545" y="1010" width="130" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="D4" value="&lt;b&gt;Redis Cluster&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;User cache | Dedup&lt;br&gt;Rate limit state&lt;br&gt;Session store&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="735" y="1015" width="170" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="D5" value="&lt;b&gt;ShedLock&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;Distributed&lt;br&gt;scheduling&lt;br&gt;(in PostgreSQL)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="965" y="1015" width="140" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- ════════════ 9. NOTIFICATION DELIVERY ════════════ -->
+        <mxCell id="DE1" value="&lt;b&gt;Amazon SES&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;Email delivery&lt;br&gt;50K emails/day free&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="170" y="1165" width="180" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="DE2" value="&lt;b&gt;Twilio&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;SMS delivery&lt;br&gt;Global reach&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="410" y="1165" width="180" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="DE3" value="&lt;b&gt;Firebase FCM&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;Push notifications&lt;br&gt;iOS &amp;amp; Android&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="650" y="1165" width="180" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="DE4" value="&lt;b&gt;Webhook&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;HTTP callbacks&lt;br&gt;Custom integrations&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="890" y="1165" width="180" height="65" as="geometry"/>
+        </mxCell>
+
+        <!-- ════════════ 10. OBSERVABILITY ════════════ -->
+        <mxCell id="M1" value="&lt;b&gt;Prometheus&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;Metrics collection&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d0e6f0;strokeColor=#56a5c4;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="170" y="1300" width="160" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="M2" value="&lt;b&gt;Grafana&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;Dashboards&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d0e6f0;strokeColor=#56a5c4;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="390" y="1300" width="160" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="M3" value="&lt;b&gt;ELK Stack&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;Centralized logs&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d0e6f0;strokeColor=#56a5c4;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="610" y="1300" width="160" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="M4" value="&lt;b&gt;Jaeger / Zipkin&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;Distributed tracing&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d0e6f0;strokeColor=#56a5c4;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="830" y="1300" width="160" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- ════════════ ARROWS — MAIN FLOW (TOP → BOTTOM) ════════════ -->
+
+        <!-- Clients → CDN -->
+        <mxCell id="AR1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#6c8ebf;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.2;entryY=0;" edge="1" source="C1" target="E1" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="AR2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#6c8ebf;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.4;entryY=0;" edge="1" source="C2" target="E1" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="AR3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#6c8ebf;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.6;entryY=0;" edge="1" source="C3" target="E1" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- CDN → API Gateway -->
+        <mxCell id="AR4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#d79b00;endArrow=block;endFill=1;exitX=0.3;exitY=1;entryX=0.5;entryY=0;" edge="1" source="E1" target="G1" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- API Gateway → LB -->
+        <mxCell id="AR5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#d79b00;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.3;entryY=0;" edge="1" source="G1" target="LB1" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- LB → App Instances -->
+        <mxCell id="AR6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#82b366;endArrow=block;endFill=1;exitX=0.15;exitY=1;entryX=0.5;entryY=0;" edge="1" source="LB1" target="A1" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="AR7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#82b366;endArrow=block;endFill=1;exitX=0.35;exitY=1;entryX=0.5;entryY=0;" edge="1" source="LB1" target="A2" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="AR8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#82b366;endArrow=block;endFill=1;exitX=0.6;exitY=1;entryX=0.5;entryY=0;" edge="1" source="LB1" target="A3" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="AR9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#82b366;endArrow=block;endFill=1;exitX=0.85;exitY=1;entryX=0.5;entryY=0;" edge="1" source="LB1" target="A4" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- App Instances → Kafka Brokers -->
+        <mxCell id="AR10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#9673a6;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="A1" target="K1" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="AR11" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#9673a6;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="A2" target="K2" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="AR12" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#9673a6;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="A3" target="K3" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="AR13" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#9673a6;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.8;entryY=0;" edge="1" source="A4" target="K3" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Kafka → Consumer Groups -->
+        <mxCell id="AR14" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#82b366;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="K1" target="CO1" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="AR15" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#82b366;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="K2" target="CO2" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="AR16" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#82b366;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="K3" target="CO3" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Consumers → PostgreSQL Primary -->
+        <mxCell id="AR17" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#d6b656;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="CO1" target="D1" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="AR18" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#d6b656;endArrow=block;endFill=1;exitX=0.3;exitY=1;entryX=0.5;entryY=0;" edge="1" source="CO2" target="D2" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- PG Primary → Read Replicas (replication arrows) -->
+        <mxCell id="AR19" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=1;strokeColor=#d6b656;endArrow=block;endFill=1;dashed=1;dashPattern=8 4;" edge="1" source="D1" target="D2" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="AR20" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=1;strokeColor=#d6b656;endArrow=block;endFill=1;dashed=1;dashPattern=8 4;" edge="1" source="D1" target="D3" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Consumers → External Delivery -->
+        <mxCell id="AR21" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#666666;endArrow=block;endFill=1;exitX=0.3;exitY=1;entryX=0.5;entryY=0;" edge="1" source="CO1" target="DE1" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="AR22" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#666666;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="CO2" target="DE2" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="AR23" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#666666;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="CO3" target="DE3" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- App → Redis (side connection for cache reads) -->
+        <mxCell id="AR24" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=1;strokeColor=#b85450;endArrow=block;endFill=1;dashed=1;exitX=1;exitY=0.5;entryX=0.5;entryY=0;" edge="1" source="A4" target="D4" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1100" y="573"/>
+              <mxPoint x="1100" y="990"/>
+              <mxPoint x="820" y="990"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Consumer → Redis (dedup check) -->
+        <mxCell id="AR25" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=1;strokeColor=#b85450;endArrow=block;endFill=1;dashed=1;exitX=0.8;exitY=1;entryX=0.5;entryY=0;" edge="1" source="CO3" target="D4" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ════════════ THROUGHPUT ANNOTATIONS ════════════ -->
+        <mxCell id="AN1" value="&lt;font style=&quot;font-size:9px;color:#4a6fa5;&quot;&gt;&lt;b&gt;HTTPS&lt;/b&gt;&lt;br&gt;~360 req/sec peak&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="190" width="110" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="AN2" value="&lt;font style=&quot;font-size:9px;color:#9673a6;&quot;&gt;&lt;b&gt;Kafka Protocol&lt;/b&gt;&lt;br&gt;Async, fire-and-forget&lt;br&gt;10K+ msg/sec&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="650" width="130" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="AN3" value="&lt;font style=&quot;font-size:9px;color:#d6b656;&quot;&gt;&lt;b&gt;WAL Replication&lt;/b&gt;&lt;br&gt;(streaming)&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="390" y="1105" width="120" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="AN4" value="&lt;font style=&quot;font-size:9px;color:#b85450;&quot;&gt;&lt;b&gt;Cache reads&lt;/b&gt;&lt;br&gt;User lookup&lt;br&gt;Dedup check&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1120" y="980" width="100" height="45" as="geometry"/>
+        </mxCell>
+
+        <!-- ════════════ DESIGN PATTERNS ANNOTATION (bottom-right) ════════════ -->
+        <mxCell id="DP" value="&lt;font style=&quot;font-size:11px;&quot;&gt;&lt;b&gt;Design Patterns Used:&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot;&gt;✓ Publish-Subscribe (Kafka)&lt;br&gt;✓ Event-Driven Architecture&lt;br&gt;✓ Competing Consumers&lt;br&gt;✓ Dead Letter Queue&lt;br&gt;✓ CQRS (Read Replicas)&lt;br&gt;✓ Circuit Breaker (Resilience4j)&lt;br&gt;✓ Cache-Aside (Redis)&lt;br&gt;✓ Distributed Lock (ShedLock)&lt;/font&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#82b366;shadow=1;align=left;spacingLeft=10;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="400" width="210" height="175" as="geometry"/>
+        </mxCell>
+
+        <!-- ════════════ CAPACITY NUMBERS (bottom-right) ════════════ -->
+        <mxCell id="CAP" value="&lt;font style=&quot;font-size:11px;&quot;&gt;&lt;b&gt;Capacity Estimates:&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot;&gt;Users: 1,000,000&lt;br&gt;Notif/user/day: ~10&lt;br&gt;Total: 10M notif/day&lt;br&gt;Avg: ~120 msg/sec&lt;br&gt;Peak (3×): ~360 msg/sec&lt;br&gt;Burst (10×): ~1200 msg/sec&lt;br&gt;DB writes: ~120/sec&lt;br&gt;DB reads: ~500/sec (cached)&lt;br&gt;Storage: ~10GB/month&lt;/font&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#d79b00;shadow=1;align=left;spacingLeft=10;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="600" width="210" height="190" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
