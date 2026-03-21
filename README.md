@@ -35,8 +35,10 @@ A scalable, extensible Notification System built with **Java 17** and **Spring B
 
 - Java 17
 - Spring Boot 3.2.4
-- Spring Data JPA
-- H2 In-Memory Database
+- Spring Data JPA + H2 In-Memory Database
+- Apache Kafka 3.7.0
+- Spring Boot Actuator
+- Docker / Podman (Containerization)
 - Lombok
 - JUnit 5 + Mockito + AssertJ
 
@@ -45,17 +47,87 @@ A scalable, extensible Notification System built with **Java 17** and **Spring B
 ### Prerequisites
 - Java 17+
 - Maven 3.8+
+- **Docker Desktop** (or **Podman**) — for containerized setup
 
-### Build & Run
+---
+
+### Option 1: Docker Compose (Recommended — One Command)
+
+This starts **Kafka + Kafka UI + Notification Service** together with a single command.
+
+```bash
+# Build and start everything
+docker-compose up --build
+
+# Or in detached (background) mode
+docker-compose up --build -d
+```
+
+| Service | URL |
+|---|---|
+| Notification Service | `http://localhost:8081` |
+| Kafka UI | `http://localhost:8090` |
+| Health Check | `http://localhost:8081/actuator/health` |
+
+**Useful commands:**
+```bash
+# View logs
+docker-compose logs -f notification-service
+
+# Check container status
+docker-compose ps
+
+# Stop everything
+docker-compose down
+
+# Stop and remove volumes
+docker-compose down -v
+```
+
+> **Note:** With Podman, use `podman-compose` in place of `docker-compose`.
+
+---
+
+### Option 2: Manual Setup with Podman + Maven
+
+If you prefer running the Spring Boot app locally (outside a container) with only Kafka in Podman:
+
+**Step 1 — Start Kafka & Kafka UI (Podman)**
+```powershell
+# Create a pod with port mappings
+podman pod create --name kafka-pod -p 9092:9092 -p 8090:8080
+
+# Start Kafka broker inside the pod
+podman run -d --pod kafka-pod --name kafka apache/kafka:3.7.0
+
+# Start Kafka UI inside the pod (Windows PowerShell — single line)
+podman run -d --pod kafka-pod --name kafka-ui -e DYNAMIC_CONFIG_ENABLED=true -e KAFKA_CLUSTERS_0_NAME=local -e KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=localhost:9092 provectuslabs/kafka-ui:latest
+```
+
+**Step 2 — Run the Application**
 ```bash
 mvn clean install
 mvn spring-boot:run
 ```
 
-The application starts on `http://localhost:8080`.
+| Service | URL |
+|---|---|
+| Notification Service | `http://localhost:8080` |
+| Kafka UI | `http://localhost:8090` |
+
+**Step 3 — Cleanup**
+```powershell
+# Stop the entire pod (Kafka + Kafka UI)
+podman pod stop kafka-pod
+
+# Remove the pod and all its containers
+podman pod rm kafka-pod
+```
+
+---
 
 ### H2 Console
-Access at `http://localhost:8080/h2-console` with:
+Access at `http://localhost:8081/h2-console` (or `:8080` if running via Maven) with:
 - JDBC URL: `jdbc:h2:mem:notificationdb`
 - Username: `sa`
 - Password: *(empty)*
