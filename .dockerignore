@@ -1,0 +1,10 @@
+target/
+.idea/
+*.iml
+.git/
+.gitignore
+*.md
+*.html
+*.pdf
+*.txt
+*.drawio
