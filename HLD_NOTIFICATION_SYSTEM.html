@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notification System — High Level Design (1M+ Notifications/Day)</title>
+    <style>
+        /* ===== RESET & BASE ===== */
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0b1120;
+            color: #e2e8f0;
+            min-height: 100vh;
+            padding: 32px 24px 60px;
+        }
+
+        /* ===== HEADER ===== */
+        h1 { text-align: center; font-size: 30px; font-weight: 800; color: #f1f5f9; letter-spacing: -0.5px; }
+        .subtitle { text-align: center; font-size: 14px; color: #64748b; margin: 6px 0 10px; }
+        .badges { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 36px; }
+        .badge {
+            font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 20px;
+            letter-spacing: 0.5px; text-transform: uppercase;
+        }
+        .badge.green  { background: #065f46; color: #6ee7b7; }
+        .badge.blue   { background: #1e3a5f; color: #7dd3fc; }
+        .badge.purple { background: #3b0764; color: #d8b4fe; }
+        .badge.orange { background: #7c2d12; color: #fdba74; }
+
+        /* ===== CANVAS ===== */
+        .canvas {
+            max-width: 1300px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        /* ===== ROWS ===== */
+        .row {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            gap: 20px;
+            position: relative;
+            z-index: 2;
+        }
+        .row.spread { justify-content: space-evenly; }
+
+        /* ===== ARROW ROWS ===== */
+        .arrow-row { display: flex; justify-content: center; margin: 4px 0; position: relative; z-index: 2; }
+        .multi-arrow { display: flex; justify-content: center; gap: 200px; }
+
+        .arrow-down {
+            width: 2px; height: 32px; background: #334155; margin: 0 auto; position: relative;
+        }
+        .arrow-down::after {
+            content: ''; position: absolute; bottom: -1px; left: 50%; transform: translateX(-50%);
+            border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid #334155;
+        }
+        .arrow-down.accent { background: #6366f1; }
+        .arrow-down.accent::after { border-top-color: #6366f1; }
+        .arrow-down.green { background: #10b981; }
+        .arrow-down.green::after { border-top-color: #10b981; }
+        .arrow-down.orange { background: #f59e0b; }
+        .arrow-down.orange::after { border-top-color: #f59e0b; }
+        .arrow-down.red { background: #ef4444; }
+        .arrow-down.red::after { border-top-color: #ef4444; }
+
+        .arrow-bidir {
+            width: 2px; height: 32px; background: #334155; margin: 0 auto; position: relative;
+        }
+        .arrow-bidir::after {
+            content: ''; position: absolute; bottom: -1px; left: 50%; transform: translateX(-50%);
+            border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid #334155;
+        }
+        .arrow-bidir::before {
+            content: ''; position: absolute; top: -1px; left: 50%; transform: translateX(-50%);
+            border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 8px solid #334155;
+        }
+
+        /* ===== FLOW LABELS ===== */
+        .flow-label {
+            font-size: 10px; color: #64748b; text-align: center; margin: 2px 0; letter-spacing: 0.4px;
+        }
+
+        /* ===== BOXES ===== */
+        .box {
+            border-radius: 14px; padding: 16px 20px; text-align: center;
+            min-width: 150px; position: relative;
+            transition: transform .15s, box-shadow .15s;
+        }
+        .box:hover { transform: translateY(-3px); box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+        .box .icon { font-size: 28px; margin-bottom: 6px; }
+        .box .title { font-weight: 700; font-size: 14px; margin-bottom: 3px; }
+        .box .desc { font-size: 11px; opacity: .82; line-height: 1.45; }
+        .wide { min-width: 240px; }
+        .narrow { min-width: 130px; }
+        .x-wide { min-width: 320px; }
+
+        /* ---- Color themes ---- */
+        .client      { background: linear-gradient(135deg,#6366f1,#818cf8); border:1px solid #818cf8; }
+        .lb          { background: linear-gradient(135deg,#0891b2,#22d3ee); border:1px solid #22d3ee; }
+        .gateway     { background: linear-gradient(135deg,#0ea5e9,#38bdf8); border:1px solid #38bdf8; }
+        .ratelimit   { background: linear-gradient(135deg,#e11d48,#fb7185); border:1px solid #fb7185; }
+        .service     { background: linear-gradient(135deg,#7c3aed,#a78bfa); border:1px solid #a78bfa; }
+        .kafka       { background: linear-gradient(135deg,#ca8a04,#facc15); border:1px solid #facc15; color:#1a1a1a; }
+        .worker      { background: linear-gradient(135deg,#8b5cf6,#c4b5fd); border:1px solid #c4b5fd; }
+        .channel     { background: linear-gradient(135deg,#059669,#34d399); border:1px solid #34d399; }
+        .db          { background: linear-gradient(135deg,#ea580c,#fb923c); border:1px solid #fb923c; }
+        .cache       { background: linear-gradient(135deg,#dc2626,#f87171); border:1px solid #f87171; }
+        .scheduler   { background: linear-gradient(135deg,#d946ef,#e879f9); border:1px solid #e879f9; }
+        .monitor     { background: linear-gradient(135deg,#475569,#94a3b8); border:1px solid #94a3b8; }
+        .dlt         { background: linear-gradient(135deg,#991b1b,#dc2626); border:1px solid #dc2626; }
+        .retry-box   { background: linear-gradient(135deg,#b45309,#f59e0b); border:1px solid #f59e0b; color:#1a1a1a; }
+
+        /* ===== SECTION DIVIDERS ===== */
+        .divider { border: none; border-top: 1px dashed #1e293b; margin: 20px 0; }
+        .section-title {
+            text-align: center; font-size: 11px; text-transform: uppercase; letter-spacing: 2px;
+            color: #475569; font-weight: 700; margin: 4px 0 10px;
+        }
+
+        /* ===== NUMBERS PANEL ===== */
+        .numbers {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr));
+            gap: 14px; max-width: 1100px; margin: 0 auto 36px;
+        }
+        .num-card {
+            background: #1e293b; border-radius: 12px; padding: 16px 18px;
+            border-left: 4px solid #6366f1;
+        }
+        .num-card .val { font-size: 22px; font-weight: 800; color: #f1f5f9; }
+        .num-card .lbl { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+
+        /* ===== LEGEND ===== */
+        .legend {
+            display: flex; justify-content: center; gap: 18px; flex-wrap: wrap;
+            margin-top: 40px; padding-top: 20px; border-top: 1px solid #1e293b;
+        }
+        .legend-item { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #94a3b8; }
+        .legend-color { width: 14px; height: 14px; border-radius: 4px; }
+
+        /* ===== SIDE-BY-SIDE ===== */
+        .side-section { display: flex; justify-content: center; gap: 60px; flex-wrap: wrap; }
+        .side-col { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+
+        /* ===== TOOLTIP ===== */
+        .tip { position: relative; cursor: help; }
+        .tip .tiptext {
+            visibility: hidden; opacity: 0; position: absolute; bottom: 110%; left: 50%; transform: translateX(-50%);
+            background: #1e293b; color: #e2e8f0; padding: 8px 12px; border-radius: 8px;
+            font-size: 11px; white-space: nowrap; z-index: 99; border: 1px solid #334155;
+            transition: opacity .2s;
+        }
+        .tip:hover .tiptext { visibility: visible; opacity: 1; }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 900px) {
+            .row { flex-wrap: wrap; }
+            .multi-arrow { gap: 80px; }
+            .side-section { gap: 30px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ============== HEADER ============== -->
+<h1>🔔 Notification System — High Level Design</h1>
+<p class="subtitle">Scalable, Highly Available Architecture · 1 Million+ Notifications / Day</p>
+<div class="badges">
+    <span class="badge green">Java 17 + Spring Boot 3.2</span>
+    <span class="badge blue">Apache Kafka</span>
+    <span class="badge purple">Priority Queues</span>
+    <span class="badge orange">Multi-Channel Delivery</span>
+</div>
+
+<!-- ============== NUMBERS ============== -->
+<div class="numbers">
+    <div class="num-card">
+        <div class="val">1,000,000+</div>
+        <div class="lbl">Notifications per Day</div>
+    </div>
+    <div class="num-card" style="border-left-color:#0ea5e9;">
+        <div class="val">~12 / sec</div>
+        <div class="lbl">Avg Throughput (peak 50+/sec)</div>
+    </div>
+    <div class="num-card" style="border-left-color:#10b981;">
+        <div class="val">3 Channels</div>
+        <div class="lbl">Email · SMS · Push Notification</div>
+    </div>
+    <div class="num-card" style="border-left-color:#f59e0b;">
+        <div class="val">3 Priorities</div>
+        <div class="lbl">HIGH · MEDIUM · LOW</div>
+    </div>
+    <div class="num-card" style="border-left-color:#ef4444;">
+        <div class="val">99.9%</div>
+        <div class="lbl">Target Availability (HA)</div>
+    </div>
+</div>
+
+<!-- ============== ARCHITECTURE DIAGRAM ============== -->
+<div class="canvas">
+
+    <!-- ======= LAYER 1: CLIENTS ======= -->
+    <div class="section-title">— Client Layer —</div>
+    <div class="row">
+        <div class="box client tip">
+            <div class="icon">👤</div>
+            <div class="title">Web / Mobile Clients</div>
+            <div class="desc">Users send notification<br>requests via REST API</div>
+            <span class="tiptext">POST /api/notifications/send & /send/bulk</span>
+        </div>
+        <div class="box client tip">
+            <div class="icon">🤖</div>
+            <div class="title">Internal Services</div>
+            <div class="desc">Microservices trigger<br>notifications programmatically</div>
+            <span class="tiptext">Payment, Order, Auth services, etc.</span>
+        </div>
+        <div class="box client tip">
+            <div class="icon">⏰</div>
+            <div class="title">Scheduled Jobs</div>
+            <div class="desc">Cron / Recurring<br>notification triggers</div>
+            <span class="tiptext">DAILY, WEEKLY, MONTHLY recurrence</span>
+        </div>
+    </div>
+
+    <!-- Arrow -->
+    <div class="arrow-row"><div class="arrow-down accent"></div></div>
+    <div class="flow-label">HTTPS / REST</div>
+
+    <!-- ======= LAYER 2: LOAD BALANCER ======= -->
+    <hr class="divider">
+    <div class="section-title">— Load Balancer Layer (HA) —</div>
+    <div class="row">
+        <div class="box lb wide tip">
+            <div class="icon">⚖️</div>
+            <div class="title">Load Balancer (L7)</div>
+            <div class="desc">
+                Nginx / AWS ALB / HAProxy<br>
+                Round-robin / Least-connections<br>
+                SSL Termination · Health Checks
+            </div>
+            <span class="tiptext">Distributes traffic across multiple API Gateway instances. Active-Passive or Active-Active for HA.</span>
+        </div>
+    </div>
+
+    <!-- Arrow -->
+    <div class="arrow-row"><div class="arrow-down accent"></div></div>
+    <div class="flow-label">Routes to healthy instances</div>
+
+    <!-- ======= LAYER 3: API GATEWAY + RATE LIMITER ======= -->
+    <hr class="divider">
+    <div class="section-title">— API Gateway + Rate Limiting Layer —</div>
+    <div class="row">
+        <div class="box gateway wide tip">
+            <div class="icon">🚪</div>
+            <div class="title">API Gateway</div>
+            <div class="desc">
+                Authentication & Authorization<br>
+                Request Routing & Validation<br>
+                Request/Response Transformation
+            </div>
+            <span class="tiptext">Spring Cloud Gateway / Kong / AWS API Gateway. Single entry point for all API calls.</span>
+        </div>
+        <div class="box ratelimit tip">
+            <div class="icon">🛡️</div>
+            <div class="title">Rate Limiter</div>
+            <div class="desc">
+                Token Bucket / Sliding Window<br>
+                Per-user & per-IP limits<br>
+                Prevents abuse & protects downstream
+            </div>
+            <span class="tiptext">Redis-backed distributed rate limiting. E.g., 100 req/min per user, 1000 req/min per IP.</span>
+        </div>
+        <div class="box cache tip">
+            <div class="icon">⚡</div>
+            <div class="title">Redis Cache</div>
+            <div class="desc">
+                Rate limit counters<br>
+                User preferences cache<br>
+                Dedup / Idempotency keys
+            </div>
+            <span class="tiptext">Redis Cluster with replication for HA. TTL-based eviction.</span>
+        </div>
+    </div>
+
+    <!-- Arrow -->
+    <div class="arrow-row"><div class="arrow-down accent"></div></div>
+    <div class="flow-label">Validated & rate-limited requests</div>
+
+    <!-- ======= LAYER 4: NOTIFICATION SERVICE (MONOLITH → SCALABLE) ======= -->
+    <hr class="divider">
+    <div class="section-title">— Notification Service Layer (Horizontally Scaled) —</div>
+    <div class="row">
+        <div class="box service tip" style="min-width:180px;">
+            <div class="icon">📦</div>
+            <div class="title">Notification Service<br><span style="font-size:10px;opacity:.7;">Instance 1</span></div>
+            <div class="desc">
+                Accept & validate request<br>
+                Persist to DB<br>
+                Publish to Kafka
+            </div>
+            <span class="tiptext">Stateless Spring Boot instance. Can be scaled to N replicas behind the LB.</span>
+        </div>
+        <div class="box service tip" style="min-width:180px;">
+            <div class="icon">📦</div>
+            <div class="title">Notification Service<br><span style="font-size:10px;opacity:.7;">Instance 2</span></div>
+            <div class="desc">
+                Accept & validate request<br>
+                Persist to DB<br>
+                Publish to Kafka
+            </div>
+            <span class="tiptext">Identical replica for horizontal scaling & fault tolerance.</span>
+        </div>
+        <div class="box service tip" style="min-width:180px;">
+            <div class="icon">📦</div>
+            <div class="title">Notification Service<br><span style="font-size:10px;opacity:.7;">Instance N</span></div>
+            <div class="desc">
+                Accept & validate request<br>
+                Persist to DB<br>
+                Publish to Kafka
+            </div>
+            <span class="tiptext">Auto-scaled based on CPU/memory/request rate. Kubernetes HPA or AWS ECS.</span>
+        </div>
+    </div>
+
+    <!-- Arrow to Kafka + DB -->
+    <div class="arrow-row">
+        <div class="multi-arrow">
+            <div>
+                <div class="arrow-down orange"></div>
+                <div class="flow-label">Publish events</div>
+            </div>
+            <div>
+                <div class="arrow-bidir"></div>
+                <div class="flow-label">Read / Write</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ======= LAYER 5: KAFKA + DATABASE ======= -->
+    <hr class="divider">
+    <div class="section-title">— Message Broker + Persistence Layer —</div>
+    <div class="row spread">
+        <div class="side-col">
+            <div class="box kafka wide tip">
+                <div class="icon">📨</div>
+                <div class="title">Apache Kafka Cluster</div>
+                <div class="desc">
+                    <strong>Topics:</strong><br>
+                    notification-send (partitioned by priority)<br>
+                    notification-retry<br>
+                    notification-send.DLT (Dead Letter)<br>
+                    notification-retry.DLT (Dead Letter)
+                </div>
+                <span class="tiptext">Multi-broker Kafka cluster (3+ brokers). Replication factor = 3. Partitions = 12+ for parallelism.</span>
+            </div>
+            <div style="font-size:10px;color:#64748b;margin-top:4px;">
+                3+ Brokers · RF=3 · 12+ Partitions<br>
+                Consumer Groups for parallel processing
+            </div>
+        </div>
+
+        <div class="side-col">
+            <div class="box db wide tip">
+                <div class="icon">🗄️</div>
+                <div class="title">Primary Database</div>
+                <div class="desc">
+                    <strong>PostgreSQL / MySQL</strong><br>
+                    notifications · users<br>
+                    user_channel_preferences<br>
+                    Indexed by user_id, status, priority
+                </div>
+                <span class="tiptext">Primary-Replica setup. Writes go to Primary, Reads from Replicas. Connection pooling via HikariCP.</span>
+            </div>
+            <div class="box db narrow tip" style="margin-top:8px;opacity:.85;">
+                <div class="icon">📖</div>
+                <div class="title">Read Replica(s)</div>
+                <div class="desc">Query offload<br>Analytics & reporting</div>
+                <span class="tiptext">Async replication from Primary. Used for GET APIs and dashboards.</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Arrow from Kafka to Workers -->
+    <div class="arrow-row"><div class="arrow-down green"></div></div>
+    <div class="flow-label">Consume events (consumer group)</div>
+
+    <!-- ======= LAYER 6: WORKER / CONSUMER POOL ======= -->
+    <hr class="divider">
+    <div class="section-title">— Worker / Consumer Layer (Priority-Based Processing) —</div>
+    <div class="row">
+        <div class="box worker tip">
+            <div class="icon">🔴</div>
+            <div class="title">HIGH Priority<br>Workers</div>
+            <div class="desc">
+                Dedicated consumer threads<br>
+                Immediate processing<br>
+                Max concurrency
+            </div>
+            <span class="tiptext">Consumes from HIGH priority partition. Concurrency = 10+ threads. SLA &lt; 1s.</span>
+        </div>
+        <div class="box worker tip" style="opacity:.9;">
+            <div class="icon">🟡</div>
+            <div class="title">MEDIUM Priority<br>Workers</div>
+            <div class="desc">
+                Standard processing<br>
+                Balanced throughput
+            </div>
+            <span class="tiptext">Moderate concurrency. SLA &lt; 5s.</span>
+        </div>
+        <div class="box worker tip" style="opacity:.8;">
+            <div class="icon">🟢</div>
+            <div class="title">LOW Priority<br>Workers</div>
+            <div class="desc">
+                Batch-friendly processing<br>
+                Best-effort delivery
+            </div>
+            <span class="tiptext">Lower concurrency. Batched for efficiency. SLA &lt; 30s.</span>
+        </div>
+        <div class="box retry-box tip">
+            <div class="icon">🔄</div>
+            <div class="title">Retry Workers</div>
+            <div class="desc">
+                Exponential backoff<br>
+                Max 3 attempts<br>
+                DLT on exhaustion
+            </div>
+            <span class="tiptext">Consumes from notification-retry topic. Delay: 1s → 2s → 4s. Failures go to DLT.</span>
+        </div>
+    </div>
+
+    <!-- Arrow -->
+    <div class="arrow-row"><div class="arrow-down green"></div></div>
+    <div class="flow-label">Resolve channel & dispatch</div>
+
+    <!-- ======= LAYER 7: CHANNEL HANDLERS ======= -->
+    <hr class="divider">
+    <div class="section-title">— Channel Delivery Layer (Strategy Pattern) —</div>
+    <div class="row">
+        <div class="box channel tip">
+            <div class="icon">📧</div>
+            <div class="title">Email Handler</div>
+            <div class="desc">SMTP / SES / SendGrid</div>
+            <span class="tiptext">EmailChannelHandler → integrates with external email provider. Templated emails.</span>
+        </div>
+        <div class="box channel tip">
+            <div class="icon">💬</div>
+            <div class="title">SMS Handler</div>
+            <div class="desc">Twilio / SNS</div>
+            <span class="tiptext">SmsChannelHandler → integrates with SMS gateway. Rate-limited per provider.</span>
+        </div>
+        <div class="box channel tip">
+            <div class="icon">🔔</div>
+            <div class="title">Push Handler</div>
+            <div class="desc">FCM / APNs</div>
+            <span class="tiptext">PushNotificationChannelHandler → Firebase Cloud Messaging / Apple Push.</span>
+        </div>
+        <div class="box channel tip" style="opacity:.6;border-style:dashed;">
+            <div class="icon">💚</div>
+            <div class="title">WhatsApp</div>
+            <div class="desc">Future (pluggable)</div>
+            <span class="tiptext">Strategy Pattern allows adding new channels by implementing NotificationChannelHandler.</span>
+        </div>
+        <div class="box channel tip" style="opacity:.6;border-style:dashed;">
+            <div class="icon">💼</div>
+            <div class="title">Slack</div>
+            <div class="desc">Future (pluggable)</div>
+            <span class="tiptext">Just implement the interface and register — auto-discovered by ChannelResolverService.</span>
+        </div>
+    </div>
+
+    <!-- Arrow -->
+    <div class="arrow-row"><div class="arrow-down green"></div></div>
+    <div class="flow-label">Delivery to end users</div>
+
+    <!-- ======= LAYER 8: END USERS ======= -->
+    <hr class="divider">
+    <div class="section-title">— End Users —</div>
+    <div class="row">
+        <div class="box client" style="min-width:300px;">
+            <div class="icon">🌍</div>
+            <div class="title">End Users</div>
+            <div class="desc">Receive notifications via Email Inbox, SMS on Phone, Push on Device</div>
+        </div>
+    </div>
+
+    <!-- ======= CROSS-CUTTING: SCHEDULER + MONITORING + DLT ======= -->
+    <hr class="divider">
+    <div class="section-title">— Cross-Cutting Concerns —</div>
+    <div class="row spread">
+        <div class="box scheduler tip">
+            <div class="icon">📅</div>
+            <div class="title">Scheduler Service</div>
+            <div class="desc">
+                Polls for scheduled notifications<br>
+                Recurring: DAILY / WEEKLY / MONTHLY<br>
+                Publishes due notifications to Kafka
+            </div>
+            <span class="tiptext">Spring @Scheduled with configurable pool size. Distributed lock (Redis/DB) for multi-instance safety.</span>
+        </div>
+        <div class="box monitor tip">
+            <div class="icon">📊</div>
+            <div class="title">Monitoring & Alerting</div>
+            <div class="desc">
+                Prometheus + Grafana<br>
+                Kafka lag monitoring<br>
+                API latency & error rates<br>
+                DLT alerts
+            </div>
+            <span class="tiptext">Metrics: throughput, p99 latency, failure rate, consumer lag, retry count, DLT entries.</span>
+        </div>
+        <div class="box dlt tip">
+            <div class="icon">☠️</div>
+            <div class="title">Dead Letter Queue</div>
+            <div class="desc">
+                notification-send.DLT<br>
+                notification-retry.DLT<br>
+                Manual intervention / replay
+            </div>
+            <span class="tiptext">Notifications that failed all retries land here. Ops team can inspect and replay.</span>
+        </div>
+        <div class="box monitor tip" style="background:linear-gradient(135deg,#1e40af,#3b82f6);border-color:#3b82f6;">
+            <div class="icon">📝</div>
+            <div class="title">Logging (ELK)</div>
+            <div class="desc">
+                Elasticsearch · Logstash · Kibana<br>
+                Centralized structured logs<br>
+                Correlation IDs for tracing
+            </div>
+            <span class="tiptext">All service instances push logs to ELK. Trace a notification end-to-end by ID.</span>
+        </div>
+    </div>
+
+    <!-- ============== LEGEND ============== -->
+    <div class="legend">
+        <div class="legend-item"><div class="legend-color" style="background:#818cf8;"></div> Clients</div>
+        <div class="legend-item"><div class="legend-color" style="background:#22d3ee;"></div> Load Balancer</div>
+        <div class="legend-item"><div class="legend-color" style="background:#38bdf8;"></div> API Gateway</div>
+        <div class="legend-item"><div class="legend-color" style="background:#fb7185;"></div> Rate Limiter</div>
+        <div class="legend-item"><div class="legend-color" style="background:#a78bfa;"></div> Notification Service</div>
+        <div class="legend-item"><div class="legend-color" style="background:#facc15;"></div> Kafka</div>
+        <div class="legend-item"><div class="legend-color" style="background:#c4b5fd;"></div> Workers</div>
+        <div class="legend-item"><div class="legend-color" style="background:#34d399;"></div> Channel Handlers</div>
+        <div class="legend-item"><div class="legend-color" style="background:#fb923c;"></div> Database</div>
+        <div class="legend-item"><div class="legend-color" style="background:#f87171;"></div> Redis Cache</div>
+        <div class="legend-item"><div class="legend-color" style="background:#e879f9;"></div> Scheduler</div>
+        <div class="legend-item"><div class="legend-color" style="background:#94a3b8;"></div> Monitoring</div>
+        <div class="legend-item"><div class="legend-color" style="background:#dc2626;"></div> Dead Letter</div>
+    </div>
+
+</div> <!-- /canvas -->
+
+<!-- ============== DESIGN DETAILS SECTION ============== -->
+<div style="max-width:1100px;margin:50px auto 0;padding:30px;background:#1e293b;border-radius:16px;">
+    <h2 style="text-align:center;font-size:22px;margin-bottom:24px;">📐 Architecture Design Decisions</h2>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;">
+
+        <div style="background:#0f172a;border-radius:12px;padding:18px;border-left:4px solid #22d3ee;">
+            <h3 style="font-size:14px;color:#38bdf8;margin-bottom:8px;">⚖️ Load Balancer</h3>
+            <ul style="font-size:12px;color:#94a3b8;padding-left:16px;line-height:1.8;">
+                <li>L7 Load Balancer (Nginx / AWS ALB)</li>
+                <li>Health checks every 10s on <code>/actuator/health</code></li>
+                <li>SSL/TLS termination at LB layer</li>
+                <li>Active-Active deployment for HA</li>
+                <li>Auto-scaling group behind LB</li>
+            </ul>
+        </div>
+
+        <div style="background:#0f172a;border-radius:12px;padding:18px;border-left:4px solid #fb7185;">
+            <h3 style="font-size:14px;color:#fb7185;margin-bottom:8px;">🛡️ Rate Limiting Strategy</h3>
+            <ul style="font-size:12px;color:#94a3b8;padding-left:16px;line-height:1.8;">
+                <li>Token Bucket algorithm (Redis-backed)</li>
+                <li>Per-user: 100 requests/minute</li>
+                <li>Per-IP: 1000 requests/minute</li>
+                <li>Bulk API: 10 requests/minute</li>
+                <li>HTTP 429 Too Many Requests on breach</li>
+            </ul>
+        </div>
+
+        <div style="background:#0f172a;border-radius:12px;padding:18px;border-left:4px solid #38bdf8;">
+            <h3 style="font-size:14px;color:#38bdf8;margin-bottom:8px;">🚪 API Gateway</h3>
+            <ul style="font-size:12px;color:#94a3b8;padding-left:16px;line-height:1.8;">
+                <li>JWT / OAuth2 authentication</li>
+                <li>Request validation & sanitization</li>
+                <li>API versioning (v1, v2)</li>
+                <li>Request logging & correlation ID injection</li>
+                <li>Circuit breaker for downstream protection</li>
+            </ul>
+        </div>
+
+        <div style="background:#0f172a;border-radius:12px;padding:18px;border-left:4px solid #facc15;">
+            <h3 style="font-size:14px;color:#facc15;margin-bottom:8px;">📨 Kafka Integration</h3>
+            <ul style="font-size:12px;color:#94a3b8;padding-left:16px;line-height:1.8;">
+                <li>3+ broker cluster, Replication Factor = 3</li>
+                <li>Topics: <code>notification-send</code>, <code>notification-retry</code></li>
+                <li>12+ partitions for parallel consumer processing</li>
+                <li>Consumer group: <code>notification-group</code> (concurrency=3+)</li>
+                <li>Dead Letter Topics for failed messages</li>
+                <li>Key = notificationId for partition ordering</li>
+            </ul>
+        </div>
+
+        <div style="background:#0f172a;border-radius:12px;padding:18px;border-left:4px solid #fb923c;">
+            <h3 style="font-size:14px;color:#fb923c;margin-bottom:8px;">🗄️ Database Design</h3>
+            <ul style="font-size:12px;color:#94a3b8;padding-left:16px;line-height:1.8;">
+                <li>PostgreSQL with Primary-Replica replication</li>
+                <li>Tables: <code>users</code>, <code>notifications</code>, <code>user_channel_preferences</code></li>
+                <li>Indexed: user_id, status, priority, scheduled_at</li>
+                <li>Connection pool: HikariCP (max 30 connections)</li>
+                <li>Read replicas for query offloading</li>
+                <li>Future: Table partitioning by date for archival</li>
+            </ul>
+        </div>
+
+        <div style="background:#0f172a;border-radius:12px;padding:18px;border-left:4px solid #a78bfa;">
+            <h3 style="font-size:14px;color:#a78bfa;margin-bottom:8px;">📦 Scalability Strategy</h3>
+            <ul style="font-size:12px;color:#94a3b8;padding-left:16px;line-height:1.8;">
+                <li>Stateless service → horizontal scaling</li>
+                <li>Kubernetes Deployment with HPA</li>
+                <li>Auto-scale: 2 (min) → 10 (max) pods</li>
+                <li>Async thread pool: core=10, max=50, queue=10K</li>
+                <li>Kafka consumers scale with partitions</li>
+                <li>Batch processing for bulk notifications (batch=100)</li>
+            </ul>
+        </div>
+
+        <div style="background:#0f172a;border-radius:12px;padding:18px;border-left:4px solid #f87171;">
+            <h3 style="font-size:14px;color:#f87171;margin-bottom:8px;">🔄 Retry & Failure Handling</h3>
+            <ul style="font-size:12px;color:#94a3b8;padding-left:16px;line-height:1.8;">
+                <li>Exponential backoff: 1s → 2s → 4s</li>
+                <li>Max 3 retry attempts per notification</li>
+                <li>Retry events published to <code>notification-retry</code> topic</li>
+                <li>Exhausted retries → Dead Letter Topic</li>
+                <li>Status tracking: PENDING → PROCESSING → SENT / FAILED / RETRY</li>
+            </ul>
+        </div>
+
+        <div style="background:#0f172a;border-radius:12px;padding:18px;border-left:4px solid #34d399;">
+            <h3 style="font-size:14px;color:#34d399;margin-bottom:8px;">🔌 High Availability</h3>
+            <ul style="font-size:12px;color:#94a3b8;padding-left:16px;line-height:1.8;">
+                <li>Multi-AZ deployment (cloud)</li>
+                <li>LB with active health checks</li>
+                <li>Kafka cluster: no single point of failure</li>
+                <li>DB: Primary-Replica with auto-failover</li>
+                <li>Redis Cluster with sentinel/HA mode</li>
+                <li>Graceful degradation on partial failures</li>
+            </ul>
+        </div>
+
+    </div>
+</div>
+
+<!-- ============== REQUEST FLOW ============== -->
+<div style="max-width:1100px;margin:30px auto 0;padding:30px;background:#1e293b;border-radius:16px;">
+    <h2 style="text-align:center;font-size:22px;margin-bottom:20px;">🔀 Request Flow — End to End</h2>
+    <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;">
+        <div style="background:#6366f1;color:#fff;padding:10px 16px;border-radius:10px;font-size:12px;font-weight:600;">
+            1️⃣ Client sends POST /api/notifications/send
+        </div>
+        <div style="color:#475569;font-size:20px;align-self:center;">→</div>
+        <div style="background:#0891b2;color:#fff;padding:10px 16px;border-radius:10px;font-size:12px;font-weight:600;">
+            2️⃣ Load Balancer routes to healthy instance
+        </div>
+        <div style="color:#475569;font-size:20px;align-self:center;">→</div>
+        <div style="background:#0ea5e9;color:#fff;padding:10px 16px;border-radius:10px;font-size:12px;font-weight:600;">
+            3️⃣ API Gateway authenticates & rate-limits
+        </div>
+        <div style="color:#475569;font-size:20px;align-self:center;">→</div>
+        <div style="background:#7c3aed;color:#fff;padding:10px 16px;border-radius:10px;font-size:12px;font-weight:600;">
+            4️⃣ Notification Service validates & persists to DB
+        </div>
+        <div style="color:#475569;font-size:20px;align-self:center;">→</div>
+        <div style="background:#ca8a04;color:#1a1a1a;padding:10px 16px;border-radius:10px;font-size:12px;font-weight:600;">
+            5️⃣ Event published to Kafka (notification-send)
+        </div>
+        <div style="color:#475569;font-size:20px;align-self:center;">→</div>
+        <div style="background:#8b5cf6;color:#fff;padding:10px 16px;border-radius:10px;font-size:12px;font-weight:600;">
+            6️⃣ Worker consumes event, resolves channel
+        </div>
+        <div style="color:#475569;font-size:20px;align-self:center;">→</div>
+        <div style="background:#059669;color:#fff;padding:10px 16px;border-radius:10px;font-size:12px;font-weight:600;">
+            7️⃣ Channel Handler delivers (Email/SMS/Push)
+        </div>
+        <div style="color:#475569;font-size:20px;align-self:center;">→</div>
+        <div style="background:#16a34a;color:#fff;padding:10px 16px;border-radius:10px;font-size:12px;font-weight:600;">
+            8️⃣ Status updated to SENT ✅ (or RETRY on failure)
+        </div>
+    </div>
+</div>
+
+<!-- ============== CAPACITY ESTIMATION ============== -->
+<div style="max-width:1100px;margin:30px auto 0;padding:30px;background:#1e293b;border-radius:16px;">
+    <h2 style="text-align:center;font-size:22px;margin-bottom:20px;">📊 Capacity Estimation (1M Notifications/Day)</h2>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+            <tr style="border-bottom:2px solid #334155;">
+                <th style="text-align:left;padding:10px;color:#94a3b8;">Metric</th>
+                <th style="text-align:left;padding:10px;color:#94a3b8;">Calculation</th>
+                <th style="text-align:left;padding:10px;color:#94a3b8;">Value</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr style="border-bottom:1px solid #1e293b;">
+                <td style="padding:10px;">Daily Notifications</td>
+                <td style="padding:10px;">Given</td>
+                <td style="padding:10px;font-weight:700;color:#6ee7b7;">1,000,000</td>
+            </tr>
+            <tr style="border-bottom:1px solid #1e293b;">
+                <td style="padding:10px;">Avg TPS (Throughput)</td>
+                <td style="padding:10px;">1M / 86,400s</td>
+                <td style="padding:10px;font-weight:700;color:#6ee7b7;">~12 req/sec</td>
+            </tr>
+            <tr style="border-bottom:1px solid #1e293b;">
+                <td style="padding:10px;">Peak TPS (5x avg)</td>
+                <td style="padding:10px;">12 × 5</td>
+                <td style="padding:10px;font-weight:700;color:#fbbf24;">~60 req/sec</td>
+            </tr>
+            <tr style="border-bottom:1px solid #1e293b;">
+                <td style="padding:10px;">Notification Size (avg)</td>
+                <td style="padding:10px;">~1 KB per notification</td>
+                <td style="padding:10px;font-weight:700;color:#6ee7b7;">1 KB</td>
+            </tr>
+            <tr style="border-bottom:1px solid #1e293b;">
+                <td style="padding:10px;">Daily Storage</td>
+                <td style="padding:10px;">1M × 1KB</td>
+                <td style="padding:10px;font-weight:700;color:#6ee7b7;">~1 GB/day</td>
+            </tr>
+            <tr style="border-bottom:1px solid #1e293b;">
+                <td style="padding:10px;">Monthly Storage</td>
+                <td style="padding:10px;">1GB × 30</td>
+                <td style="padding:10px;font-weight:700;color:#fbbf24;">~30 GB/month</td>
+            </tr>
+            <tr style="border-bottom:1px solid #1e293b;">
+                <td style="padding:10px;">Kafka Throughput</td>
+                <td style="padding:10px;">~60 msg/sec peak × 1KB</td>
+                <td style="padding:10px;font-weight:700;color:#6ee7b7;">~60 KB/sec</td>
+            </tr>
+            <tr style="border-bottom:1px solid #1e293b;">
+                <td style="padding:10px;">Service Instances Needed</td>
+                <td style="padding:10px;">60 TPS / ~30 TPS per instance</td>
+                <td style="padding:10px;font-weight:700;color:#6ee7b7;">2-3 instances</td>
+            </tr>
+            <tr>
+                <td style="padding:10px;">Kafka Partitions</td>
+                <td style="padding:10px;">≥ consumer count × 2</td>
+                <td style="padding:10px;font-weight:700;color:#6ee7b7;">12 partitions</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- ============== FOOTER ============== -->
+<div style="text-align:center;margin-top:40px;color:#475569;font-size:12px;">
+    <p>Notification System HLD · Built with Java 17, Spring Boot 3.2, Apache Kafka</p>
+    <p style="margin-top:4px;">Strategy Pattern · Async Processing · Exponential Backoff Retry · Horizontal Scaling</p>
+</div>
+
+</body>
+</html>
