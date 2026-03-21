@@ -2,7 +2,9 @@ package com.notification.service;
 
 import com.notification.dto.NotificationResponse;
 import com.notification.dto.SendNotificationRequest;
+import com.notification.event.NotificationEvent;
 import com.notification.exception.NotificationException;
+import com.notification.kafka.NotificationKafkaProducer;
 import com.notification.model.Notification;
 import com.notification.model.User;
 import com.notification.model.enums.*;
@@ -32,7 +34,7 @@ class NotificationServiceTest {
     private UserService userService;
 
     @Mock
-    private NotificationProcessingService processingService;
+    private NotificationKafkaProducer kafkaProducer;
 
     @InjectMocks
     private NotificationService notificationService;
@@ -74,7 +76,7 @@ class NotificationServiceTest {
         assertThat(response).isNotNull();
         assertThat(response.getPriority()).isEqualTo(NotificationPriority.HIGH);
         assertThat(response.getChannel()).isEqualTo(NotificationChannel.EMAIL);
-        verify(processingService).processNotificationAsync(any(Notification.class));
+        verify(kafkaProducer).sendNotificationEvent(any(NotificationEvent.class));
     }
 
     @Test
@@ -127,7 +129,7 @@ class NotificationServiceTest {
 
         assertThat(response.getStatus()).isEqualTo(NotificationStatus.SCHEDULED);
         assertThat(response.getScheduledAt()).isEqualTo(futureTime);
-        verify(processingService, never()).processNotificationAsync(any());
+        verify(kafkaProducer, never()).sendNotificationEvent(any());
     }
 
     @Test

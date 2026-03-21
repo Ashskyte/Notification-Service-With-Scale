@@ -20,9 +20,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class HttpLoadTest {
 
-    private static final String BASE_URL = "http://localhost:8080";
-    private static final int NUM_USERS = 10;
-    private static final int TOTAL_NOTIFICATIONS = 200;
+    private static final String BASE_URL = "http://localhost:8081";
+    private static final int NUM_USERS = 20;
+    private static final int TOTAL_NOTIFICATIONS = 1000;
     private static final int CONCURRENT_THREADS = 30;
 
     private static final HttpClient httpClient = HttpClient.newBuilder()

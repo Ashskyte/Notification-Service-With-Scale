@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HLD — Notification System for 1 Million Users</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #0c0e1a 0%, #111827 50%, #0f172a 100%);
+            color: #e2e8f0; line-height: 1.7; min-height: 100vh;
+        }
+        .nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+            background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(16px);
+            border-bottom: 1px solid #1e293b; padding: 12px 32px;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .nav-brand { font-weight: 800; font-size: 15px; color: #f8fafc; }
+        .nav-links { display: flex; gap: 6px; flex-wrap: wrap; }
+        .nav-links a {
+            color: #94a3b8; text-decoration: none; font-size: 11px;
+            padding: 4px 10px; border-radius: 6px; transition: all 0.2s;
+        }
+        .nav-links a:hover { color: #e2e8f0; background: #1e293b; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 80px 24px 60px; }
+        .hero { text-align: center; padding: 64px 0 48px; }
+        .hero-badge {
+            display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 1.5px; color: #22d3ee; background: rgba(34, 211, 238, 0.12);
+            border: 1px solid rgba(34, 211, 238, 0.25); border-radius: 20px;
+            padding: 5px 16px; margin-bottom: 20px;
+        }
+        .hero h1 {
+            font-size: 36px; font-weight: 800;
+            background: linear-gradient(135deg, #22d3ee, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text; background-clip: text;
+            -webkit-text-fill-color: transparent; margin-bottom: 14px;
+        }
+        .hero p { font-size: 15px; color: #64748b; max-width: 700px; margin: 0 auto; }
+        .section {
+            background: rgba(30, 41, 59, 0.6); backdrop-filter: blur(8px);
+            border: 1px solid #293548; border-radius: 20px;
+            padding: 36px 40px; margin-bottom: 32px; position: relative; overflow: hidden;
+        }
+        .section::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+            background: linear-gradient(90deg, transparent, #3b82f644, transparent);
+        }
+        .section-num {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 32px; height: 32px; border-radius: 10px; font-size: 14px; font-weight: 800;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            color: white; margin-right: 12px;
+        }
+        .section-title {
+            font-size: 22px; font-weight: 700; color: #f1f5f9;
+            display: flex; align-items: center; margin-bottom: 20px;
+        }
+        .section-subtitle {
+            font-size: 16px; font-weight: 700; color: #e2e8f0;
+            margin: 28px 0 14px; padding-bottom: 8px; border-bottom: 1px solid #293548;
+        }
+        code {
+            background: #0f172a; padding: 2px 8px; border-radius: 5px;
+            font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 12px; color: #22d3ee;
+        }
+        .diagram {
+            background: #020617; border: 1px solid #1e293b; border-radius: 14px;
+            padding: 32px; overflow-x: auto; margin: 20px 0;
+            font-family: 'Cascadia Code', 'Consolas', monospace;
+            font-size: 12px; line-height: 1.5; color: #94a3b8; white-space: pre;
+        }
+        .diagram-title {
+            font-size: 11px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 1.2px; margin-bottom: 16px; display: block;
+        }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 18px 0; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin: 18px 0; }
+        .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 14px; margin: 18px 0; }
+        .card {
+            background: #0f172a; border: 1px solid #293548; border-radius: 14px;
+            padding: 20px 22px; transition: border-color 0.3s;
+        }
+        .card:hover { border-color: #475569; }
+        .card-blue { border-left: 3px solid #3b82f6; }
+        .card-green { border-left: 3px solid #22c55e; }
+        .card-orange { border-left: 3px solid #f97316; }
+        .card-purple { border-left: 3px solid #8b5cf6; }
+        .card-red { border-left: 3px solid #ef4444; }
+        .card-yellow { border-left: 3px solid #eab308; }
+        .card-teal { border-left: 3px solid #14b8a6; }
+        .card-label {
+            font-size: 10px; font-weight: 800; text-transform: uppercase;
+            letter-spacing: 1px; margin-bottom: 10px;
+        }
+        .lb { color: #60a5fa; } .lg { color: #4ade80; } .lo { color: #fb923c; }
+        .lp { color: #a78bfa; } .lr { color: #f87171; } .ly { color: #fde047; }
+        .lt { color: #2dd4bf; }
+        .alert {
+            padding: 16px 20px; border-radius: 12px; font-size: 13px;
+            margin: 18px 0; line-height: 1.8;
+        }
+        .alert-blue { background: rgba(30, 58, 95, 0.2); border: 1px solid rgba(30, 58, 95, 0.35); color: #7dd3fc; }
+        .alert-green { background: rgba(20, 83, 45, 0.2); border: 1px solid rgba(20, 83, 45, 0.35); color: #86efac; }
+        .alert-orange { background: rgba(113, 63, 18, 0.2); border: 1px solid rgba(113, 63, 18, 0.35); color: #fdba74; }
+        .alert-red { background: rgba(127, 29, 29, 0.2); border: 1px solid rgba(127, 29, 29, 0.35); color: #fca5a5; }
+        .tbl {
+            width: 100%; border-collapse: collapse; font-size: 13px;
+            background: #0f172a; border-radius: 12px; overflow: hidden; margin: 18px 0;
+        }
+        .tbl th {
+            padding: 13px 18px; font-size: 10px; text-transform: uppercase;
+            letter-spacing: 1px; color: #64748b; border-bottom: 2px solid #293548;
+            text-align: left; font-weight: 700;
+        }
+        .tbl td { padding: 12px 18px; border-bottom: 1px solid #1e293b; color: #94a3b8; }
+        .tbl td:first-child { color: #cbd5e1; font-weight: 600; }
+        .tbl tr:last-child td { border-bottom: none; }
+        .tbl tr:hover td { background: rgba(30, 41, 59, 0.4); }
+        p { font-size: 14px; color: #94a3b8; margin-bottom: 14px; }
+        .text-sm { font-size: 13px; }
+        .footer {
+            text-align: center; margin-top: 48px; padding: 24px 0;
+            border-top: 1px solid #1e293b; font-size: 12px; color: #475569;
+        }
+
+        /* Architecture layers */
+        .arch-layer {
+            display: flex; align-items: stretch; gap: 0; margin: 4px 0;
+        }
+        .arch-label {
+            width: 130px; flex-shrink: 0; display: flex; align-items: center;
+            justify-content: flex-end; padding-right: 16px;
+            font-size: 10px; font-weight: 800; text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .arch-content {
+            flex: 1; display: flex; gap: 12px; align-items: center;
+            flex-wrap: wrap; padding: 10px 0;
+        }
+        .arch-box {
+            padding: 12px 18px; border-radius: 10px; font-size: 12px;
+            text-align: center; min-width: 140px; flex: 1;
+        }
+        .arch-box strong { display: block; font-size: 13px; margin-bottom: 2px; }
+        .arch-box small { font-size: 10px; opacity: 0.7; }
+        .arch-wide { min-width: 90%; }
+        .arch-arrow {
+            width: 100%; text-align: center; color: #475569;
+            font-size: 20px; line-height: 1; padding: 2px 0;
+            margin-left: 130px;
+        }
+        .bg-blue { background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); color: #93c5fd; }
+        .bg-orange { background: rgba(249, 115, 22, 0.15); border: 1px solid rgba(249, 115, 22, 0.3); color: #fdba74; }
+        .bg-green { background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.3); color: #86efac; }
+        .bg-purple { background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #c4b5fd; }
+        .bg-yellow { background: rgba(234, 179, 8, 0.15); border: 1px solid rgba(234, 179, 8, 0.3); color: #fde047; }
+        .bg-red { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; }
+        .bg-gray { background: rgba(148, 163, 184, 0.1); border: 1px solid rgba(148, 163, 184, 0.2); color: #cbd5e1; }
+        .bg-teal { background: rgba(20, 184, 166, 0.15); border: 1px solid rgba(20, 184, 166, 0.3); color: #5eead4; }
+    </style>
+</head>
+<body>
+
+<nav class="nav">
+    <div class="nav-brand">HLD &mdash; Notification System (1M Users)</div>
+    <div class="nav-links">
+        <a href="#arch">Architecture</a>
+        <a href="#layers">Layers</a>
+        <a href="#capacity">Capacity</a>
+        <a href="#scaling">Scaling</a>
+        <a href="#patterns">Patterns</a>
+        <a href="#comparison">Current vs Target</a>
+    </div>
+</nav>
+
+<div class="container">
+
+<div class="hero">
+    <div class="hero-badge">System Design &mdash; High-Level Architecture</div>
+    <h1>Notification System for 1 Million Users</h1>
+    <p>Complete architecture with API Gateway, Load Balancer, Kafka cluster, PostgreSQL with read replicas,
+       Redis caching, and full observability. Editable diagram available in <code>HLD_1M_USERS.drawio</code>.</p>
+</div>
+
+<!-- ════════════ 1. ARCHITECTURE OVERVIEW ════════════ -->
+<div class="section" id="arch">
+    <div class="section-title"><span class="section-num">1</span> Architecture Overview — The Big Picture</div>
+
+    <p>The system is designed as a <strong>10-layer architecture</strong>, each layer independently scalable.
+       Traffic flows top-to-bottom, with Kafka decoupling the write path (API) from the processing path (consumers).</p>
+
+    <!-- Visual Architecture -->
+    <div style="background: #020617; border: 1px solid #1e293b; border-radius: 14px; padding: 28px 20px; margin: 20px 0; overflow-x: auto;">
+
+        <div class="arch-layer">
+            <div class="arch-label" style="color: #60a5fa;">Clients</div>
+            <div class="arch-content">
+                <div class="arch-box bg-blue"><strong>Web Browsers</strong><small>React / Angular</small></div>
+                <div class="arch-box bg-blue"><strong>Mobile Apps</strong><small>iOS / Android</small></div>
+                <div class="arch-box bg-blue"><strong>IoT / Webhooks</strong><small>Third-party triggers</small></div>
+                <div class="arch-box bg-blue" style="border-style: dashed;"><strong>1M+ Users</strong><small>~120 req/sec avg</small></div>
+            </div>
+        </div>
+        <div class="arch-arrow">▼ ▼ ▼</div>
+
+        <div class="arch-layer">
+            <div class="arch-label" style="color: #fb923c;">Edge / CDN</div>
+            <div class="arch-content">
+                <div class="arch-box bg-orange arch-wide"><strong>CloudFlare CDN</strong><small>DNS | SSL Termination | DDoS Protection | Static Asset Cache</small></div>
+            </div>
+        </div>
+        <div class="arch-arrow">▼</div>
+
+        <div class="arch-layer">
+            <div class="arch-label" style="color: #fb923c;">API Gateway</div>
+            <div class="arch-content">
+                <div class="arch-box bg-orange"><strong>API Gateway</strong><small>Kong / AWS API GW<br>Routing | Throttling</small></div>
+                <div class="arch-box bg-red"><strong>Rate Limiter</strong><small>Token Bucket<br>1000 req/min/user</small></div>
+                <div class="arch-box bg-orange"><strong>Auth Service</strong><small>JWT | OAuth 2.0<br>RBAC</small></div>
+                <div class="arch-box bg-orange"><strong>Validation</strong><small>Schema check<br>Sanitize input</small></div>
+            </div>
+        </div>
+        <div class="arch-arrow">▼</div>
+
+        <div class="arch-layer">
+            <div class="arch-label" style="color: #fb923c;">Load Balancer</div>
+            <div class="arch-content">
+                <div class="arch-box bg-orange arch-wide"><strong>Nginx / AWS ALB</strong><small>Round-Robin | Health Checks | Sticky Sessions | Auto-Scaling Triggers</small></div>
+            </div>
+        </div>
+        <div class="arch-arrow">▼ &nbsp;&nbsp;&nbsp; ▼ &nbsp;&nbsp;&nbsp; ▼ &nbsp;&nbsp;&nbsp; ▼</div>
+
+        <div class="arch-layer">
+            <div class="arch-label" style="color: #4ade80;">Application</div>
+            <div class="arch-content">
+                <div class="arch-box bg-green"><strong>Spring Boot #1</strong><small>REST API<br>Kafka Producer</small></div>
+                <div class="arch-box bg-green"><strong>Spring Boot #2</strong><small>REST API<br>Kafka Producer</small></div>
+                <div class="arch-box bg-green"><strong>Spring Boot #3</strong><small>REST API<br>Kafka Producer</small></div>
+                <div class="arch-box bg-green" style="border-style: dashed;"><strong>Spring Boot #N</strong><small>Auto-scaled<br>5-10 instances</small></div>
+            </div>
+        </div>
+        <div class="arch-arrow">▼ &nbsp;&nbsp;&nbsp; ▼ &nbsp;&nbsp;&nbsp; ▼ &nbsp;&nbsp;&nbsp; ▼</div>
+
+        <div class="arch-layer">
+            <div class="arch-label" style="color: #a78bfa;">Kafka Cluster</div>
+            <div class="arch-content">
+                <div class="arch-box bg-purple"><strong>Broker 1</strong><small>KRaft mode<br>Partitions 0-9</small></div>
+                <div class="arch-box bg-purple"><strong>Broker 2</strong><small>KRaft mode<br>Partitions 10-19</small></div>
+                <div class="arch-box bg-purple"><strong>Broker 3</strong><small>KRaft mode<br>Partitions 20-29</small></div>
+                <div class="arch-box bg-purple" style="border-style: none; background: transparent; min-width: auto; font-size: 10px; color: #a78bfa; text-align: left;">
+                    <strong>Topics:</strong><br>
+                    notification-send (30 part)<br>
+                    notification-retry (30 part)<br>
+                    + DLT topics<br>
+                    <strong>10K+ msg/sec</strong>
+                </div>
+            </div>
+        </div>
+        <div class="arch-arrow">▼ &nbsp;&nbsp;&nbsp; ▼ &nbsp;&nbsp;&nbsp; ▼</div>
+
+        <div class="arch-layer">
+            <div class="arch-label" style="color: #4ade80;">Consumers</div>
+            <div class="arch-content">
+                <div class="arch-box bg-green"><strong>Consumer Group #1</strong><small>5 threads | DB Writer</small></div>
+                <div class="arch-box bg-green"><strong>Consumer Group #2</strong><small>5 threads | DB Writer</small></div>
+                <div class="arch-box bg-green" style="border-style: dashed;"><strong>Consumer Group #N</strong><small>30 parallel consumers</small></div>
+            </div>
+        </div>
+        <div class="arch-arrow">▼ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ▼</div>
+
+        <div class="arch-layer">
+            <div class="arch-label" style="color: #fde047;">Data Layer</div>
+            <div class="arch-content">
+                <div class="arch-box bg-yellow"><strong>PostgreSQL Primary</strong><small>Write traffic<br>WAL replication</small></div>
+                <div class="arch-box bg-yellow" style="opacity:0.75;"><strong>PG Read Replica 1</strong><small>Read traffic</small></div>
+                <div class="arch-box bg-yellow" style="opacity:0.75;"><strong>PG Read Replica 2</strong><small>Read traffic</small></div>
+                <div class="arch-box bg-red"><strong>Redis Cluster</strong><small>User cache | Dedup<br>Rate limit state</small></div>
+                <div class="arch-box bg-gray"><strong>ShedLock</strong><small>Distributed<br>scheduling</small></div>
+            </div>
+        </div>
+        <div class="arch-arrow">▼ &nbsp;&nbsp;&nbsp; ▼ &nbsp;&nbsp;&nbsp; ▼ &nbsp;&nbsp;&nbsp; ▼</div>
+
+        <div class="arch-layer">
+            <div class="arch-label" style="color: #94a3b8;">Delivery</div>
+            <div class="arch-content">
+                <div class="arch-box bg-gray"><strong>Amazon SES</strong><small>Email<br>50K/day free</small></div>
+                <div class="arch-box bg-gray"><strong>Twilio</strong><small>SMS<br>Global reach</small></div>
+                <div class="arch-box bg-gray"><strong>Firebase FCM</strong><small>Push<br>iOS &amp; Android</small></div>
+                <div class="arch-box bg-gray"><strong>Webhooks</strong><small>HTTP callbacks<br>Custom</small></div>
+            </div>
+        </div>
+        <div class="arch-arrow">⬇</div>
+
+        <div class="arch-layer">
+            <div class="arch-label" style="color: #2dd4bf;">Observability</div>
+            <div class="arch-content">
+                <div class="arch-box bg-teal"><strong>Prometheus</strong><small>Metrics</small></div>
+                <div class="arch-box bg-teal"><strong>Grafana</strong><small>Dashboards</small></div>
+                <div class="arch-box bg-teal"><strong>ELK Stack</strong><small>Centralized logs</small></div>
+                <div class="arch-box bg-teal"><strong>Jaeger</strong><small>Distributed tracing</small></div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="alert alert-blue">
+        <strong>Editable diagram:</strong> Open <code>HLD_1M_USERS.drawio</code> in
+        <a href="https://app.diagrams.net" style="color:#60a5fa;">app.diagrams.net</a> (draw.io) to edit, rearrange, or export as PNG/PDF.
+    </div>
+</div>
+
+<!-- ════════════ 2. EACH LAYER EXPLAINED ════════════ -->
+<div class="section" id="layers">
+    <div class="section-title"><span class="section-num">2</span> Each Layer Explained</div>
+
+    <div class="section-subtitle">Layer 1 — Clients (1M+ Users)</div>
+    <p>Web browsers, mobile apps, IoT devices, and third-party webhooks. All communicate via HTTPS REST APIs.</p>
+
+    <div class="section-subtitle">Layer 2 — Edge / CDN (CloudFlare)</div>
+    <div class="grid-2">
+        <div class="card card-orange">
+            <div class="card-label lo">What It Does</div>
+            <div class="text-sm" style="color:#94a3b8; line-height: 2;">
+                <strong>DNS Resolution:</strong> Routes users to nearest data center<br>
+                <strong>SSL Termination:</strong> Handles HTTPS encryption/decryption<br>
+                <strong>DDoS Protection:</strong> Blocks malicious traffic before it reaches servers<br>
+                <strong>Static Cache:</strong> Serves CSS, JS, images without hitting backend
+            </div>
+        </div>
+        <div class="card card-orange">
+            <div class="card-label lo">Why It Matters at 1M Users</div>
+            <div class="text-sm" style="color:#94a3b8; line-height: 2;">
+                Without CDN, every static request hits your servers. With 1M users loading a page
+                with 20 assets each, that's 20M requests/day just for static files. CDN absorbs 80%+ of that traffic.
+            </div>
+        </div>
+    </div>
+
+    <div class="section-subtitle">Layer 3 — API Gateway</div>
+    <div class="grid-4">
+        <div class="card card-orange">
+            <div class="card-label lo">Routing</div>
+            <div class="text-sm" style="color:#94a3b8;">Routes <code>/api/notifications/*</code> to notification service, <code>/api/users/*</code> to user service. Single entry point.</div>
+        </div>
+        <div class="card card-red">
+            <div class="card-label lr">Rate Limiting</div>
+            <div class="text-sm" style="color:#94a3b8;">Token bucket: 1000 req/min per user. Prevents abuse. Returns <code>429 Too Many Requests</code>.</div>
+        </div>
+        <div class="card card-orange">
+            <div class="card-label lo">Authentication</div>
+            <div class="text-sm" style="color:#94a3b8;">JWT validation on every request. OAuth 2.0 flows. Role-based access control (RBAC).</div>
+        </div>
+        <div class="card card-orange">
+            <div class="card-label lo">Validation</div>
+            <div class="text-sm" style="color:#94a3b8;">Schema validation, input sanitization. Rejects malformed requests before they reach application layer.</div>
+        </div>
+    </div>
+
+    <div class="section-subtitle">Layer 4 — Load Balancer (Nginx / AWS ALB)</div>
+    <p>Distributes incoming requests across multiple Spring Boot instances using round-robin or least-connections.
+       Performs health checks every 10 seconds — removes unhealthy instances automatically.
+       Triggers auto-scaling when CPU > 70% or request queue > 100.</p>
+
+    <div class="section-subtitle">Layer 5 — Application Layer (Spring Boot Instances)</div>
+    <p>5-10 auto-scaled instances. Each instance runs: REST API endpoints, Kafka Producer, Async Thread Pool.
+       Stateless design — any instance can handle any request. Session state stored in Redis (not in JVM).</p>
+
+    <div class="section-subtitle">Layer 6 — Kafka Cluster (3 Brokers, 30 Partitions)</div>
+    <div class="grid-3">
+        <div class="card card-purple">
+            <div class="card-label lp">Broker 1</div>
+            <div class="text-sm" style="color:#94a3b8;">KRaft mode (no Zookeeper). Stores partitions 0-9. Handles 1/3 of write traffic. SSD storage.</div>
+        </div>
+        <div class="card card-purple">
+            <div class="card-label lp">Broker 2</div>
+            <div class="text-sm" style="color:#94a3b8;">Stores partitions 10-19. Replicates data from Broker 1 for fault tolerance (replication factor = 3).</div>
+        </div>
+        <div class="card card-purple">
+            <div class="card-label lp">Broker 3</div>
+            <div class="text-sm" style="color:#94a3b8;">Stores partitions 20-29. If any broker dies, the other 2 have full copies — zero data loss.</div>
+        </div>
+    </div>
+
+    <div class="section-subtitle">Layer 7 — Consumer Layer (30 Parallel Consumers)</div>
+    <p>N consumer instances, each running 5 consumer threads. Total: 30 consumers across instances, one per partition.
+       Each consumer: reads from Kafka → fetches from DB → resolves channel → sends notification → commits offset.</p>
+
+    <div class="section-subtitle">Layer 8 — Data Layer</div>
+    <div class="grid-3">
+        <div class="card card-yellow">
+            <div class="card-label ly">PostgreSQL Primary</div>
+            <div class="text-sm" style="color:#94a3b8; line-height: 2;">
+                All write operations (INSERT, UPDATE).<br>
+                WAL (Write-Ahead Log) streaming replication to replicas.<br>
+                Connection pool: HikariCP (max 30 connections per instance).
+            </div>
+        </div>
+        <div class="card card-red">
+            <div class="card-label lr">Redis Cluster</div>
+            <div class="text-sm" style="color:#94a3b8; line-height: 2;">
+                <strong>User cache:</strong> Avoid DB lookup for every notification<br>
+                <strong>Deduplication:</strong> Prevent duplicate sends after consumer restart<br>
+                <strong>Rate limit state:</strong> Track per-user, per-channel send counts
+            </div>
+        </div>
+        <div class="card card-blue">
+            <div class="card-label lb">ShedLock</div>
+            <div class="text-sm" style="color:#94a3b8; line-height: 2;">
+                Distributed scheduling lock stored in PostgreSQL.<br>
+                Ensures <code>@Scheduled</code> tasks run on exactly 1 instance.<br>
+                Prevents duplicate retry scans across N instances.
+            </div>
+        </div>
+    </div>
+
+    <div class="section-subtitle">Layer 9 — Notification Delivery</div>
+    <table class="tbl">
+        <thead><tr><th>Channel</th><th>Provider</th><th>Rate Limit</th><th>Cost at Scale</th></tr></thead>
+        <tbody>
+            <tr><td>Email</td><td>Amazon SES</td><td>50K/day (free tier), then unlimited</td><td>$0.10 per 1K emails</td></tr>
+            <tr><td>SMS</td><td>Twilio</td><td>~100 msg/sec per number</td><td>$0.0075 per SMS (US)</td></tr>
+            <tr><td>Push</td><td>Firebase FCM</td><td>Unlimited (free)</td><td>Free</td></tr>
+            <tr><td>Webhook</td><td>Custom HTTP</td><td>Configurable per endpoint</td><td>Infra cost only</td></tr>
+        </tbody>
+    </table>
+
+    <div class="section-subtitle">Layer 10 — Observability</div>
+    <div class="grid-4">
+        <div class="card card-teal">
+            <div class="card-label lt">Prometheus</div>
+            <div class="text-sm" style="color:#94a3b8;">Scrapes metrics from all instances. JVM stats, Kafka lag, HTTP latencies, custom business metrics.</div>
+        </div>
+        <div class="card card-teal">
+            <div class="card-label lt">Grafana</div>
+            <div class="text-sm" style="color:#94a3b8;">Visual dashboards. Alerts on: Kafka lag > 1000, error rate > 5%, P99 latency > 500ms.</div>
+        </div>
+        <div class="card card-teal">
+            <div class="card-label lt">ELK Stack</div>
+            <div class="text-sm" style="color:#94a3b8;">Centralized logs from all instances. Search, filter, and correlate logs. 30-day retention.</div>
+        </div>
+        <div class="card card-teal">
+            <div class="card-label lt">Jaeger</div>
+            <div class="text-sm" style="color:#94a3b8;">End-to-end distributed tracing. Trace a notification from HTTP POST → Kafka → Consumer → Email.</div>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════ 3. CAPACITY PLANNING ════════════ -->
+<div class="section" id="capacity">
+    <div class="section-title"><span class="section-num">3</span> Capacity Planning — Numbers at 1M Users</div>
+
+    <table class="tbl">
+        <thead><tr><th>Metric</th><th>Calculation</th><th>Value</th></tr></thead>
+        <tbody>
+            <tr><td>Total users</td><td>Given</td><td><strong>1,000,000</strong></td></tr>
+            <tr><td>Notifications per user per day</td><td>Estimated avg</td><td><strong>10</strong></td></tr>
+            <tr><td>Total notifications per day</td><td>1M &times; 10</td><td><strong>10,000,000</strong></td></tr>
+            <tr><td>Average throughput</td><td>10M / 86,400 sec</td><td><strong>~120 msg/sec</strong></td></tr>
+            <tr><td>Peak throughput (3&times;)</td><td>120 &times; 3</td><td><strong>~360 msg/sec</strong></td></tr>
+            <tr><td>Burst throughput (10&times;)</td><td>120 &times; 10</td><td><strong>~1,200 msg/sec</strong></td></tr>
+            <tr><td>Kafka capacity needed</td><td>With headroom</td><td><strong>~5,000 msg/sec (comfortable)</strong></td></tr>
+            <tr><td>DB writes</td><td>~120/sec avg (2&times; per notif: create + update)</td><td><strong>~240 writes/sec</strong></td></tr>
+            <tr><td>DB reads</td><td>~500/sec (with Redis cache, 80% hit rate)</td><td><strong>~100 actual DB reads/sec</strong></td></tr>
+            <tr><td>Storage per month</td><td>10M notif &times; ~1KB &times; 30 days</td><td><strong>~300 GB/month</strong></td></tr>
+            <tr><td>Kafka storage</td><td>7-day retention &times; 10M/day &times; 200 bytes</td><td><strong>~14 GB</strong></td></tr>
+        </tbody>
+    </table>
+
+    <div class="section-subtitle">Infrastructure Sizing</div>
+
+    <table class="tbl">
+        <thead><tr><th>Component</th><th>Instances</th><th>Specs (each)</th><th>Estimated Cost/mo</th></tr></thead>
+        <tbody>
+            <tr><td>Spring Boot (API)</td><td>5-10</td><td>2 vCPU, 4GB RAM</td><td>~$150-300</td></tr>
+            <tr><td>Spring Boot (Consumer)</td><td>6</td><td>2 vCPU, 4GB RAM</td><td>~$180</td></tr>
+            <tr><td>Kafka Broker</td><td>3</td><td>4 vCPU, 8GB RAM, 100GB SSD</td><td>~$300</td></tr>
+            <tr><td>PostgreSQL Primary</td><td>1</td><td>4 vCPU, 16GB RAM, 500GB SSD</td><td>~$200</td></tr>
+            <tr><td>PostgreSQL Replicas</td><td>2</td><td>2 vCPU, 8GB RAM, 500GB SSD</td><td>~$200</td></tr>
+            <tr><td>Redis Cluster</td><td>3 nodes</td><td>2 vCPU, 8GB RAM</td><td>~$150</td></tr>
+            <tr><td>Load Balancer</td><td>1 (managed)</td><td>AWS ALB</td><td>~$30</td></tr>
+            <tr><td>Monitoring Stack</td><td>1</td><td>2 vCPU, 8GB RAM, 200GB</td><td>~$100</td></tr>
+            <tr><td colspan="3" style="text-align:right; font-weight: 700; color: #e2e8f0;">Total estimated</td><td style="font-weight: 700; color: #4ade80;">~$1,300-1,500/mo</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- ════════════ 4. SCALING STRATEGY ════════════ -->
+<div class="section" id="scaling">
+    <div class="section-title"><span class="section-num">4</span> Scaling Strategy — How Each Layer Scales</div>
+
+    <div class="diagram">
+<span class="diagram-title" style="color:#22d3ee;">SCALING DIMENSIONS</span>
+
+  <span style="color:#fb923c; font-weight:700;">HORIZONTAL SCALING (add more instances)</span>
+  ├── API instances:      5 → 10 → 20 (auto-scale on CPU/request rate)
+  ├── Consumer instances:  6 → 12 → 30 (match Kafka partition count)
+  ├── Kafka brokers:       3 → 5 → 7  (add when storage/throughput limited)
+  ├── PG read replicas:    2 → 4 → 8  (add for more read throughput)
+  └── Redis nodes:         3 → 6       (cluster mode, auto-sharding)
+
+  <span style="color:#22d3ee; font-weight:700;">VERTICAL SCALING (bigger machines)</span>
+  ├── PostgreSQL Primary:  4 vCPU → 8 → 16 (for write-heavy workloads)
+  ├── Kafka brokers:       8GB → 16GB RAM  (for larger page cache)
+  └── Redis:               8GB → 32GB RAM  (for larger cache)
+
+  <span style="color:#a78bfa; font-weight:700;">KAFKA-SPECIFIC SCALING</span>
+  ├── Add partitions:      3 → 30 → 100  (more parallelism)
+  ├── Add consumer threads: match partition count
+  ├── Add brokers:         distribute partition load
+  └── Increase retention:  7 days → 30 days (for replay capability)
+
+  <span style="color:#4ade80; font-weight:700;">DATABASE SCALING</span>
+  ├── Connection pooling:  HikariCP (30 per instance × 10 instances = 300 total)
+  ├── Read/Write split:    Writes → Primary, Reads → Replicas
+  ├── Indexing:            Composite indexes on (status, scheduledAt, priority)
+  ├── Partitioning:        Table partition by month for old notifications
+  └── Archival:            Move notifications older than 90 days to cold storage</div>
+
+    <div class="alert alert-green">
+        <strong>Auto-scaling triggers (Kubernetes / ECS):</strong><br>
+        &bull; <strong>Scale up API instances</strong> when: CPU > 70% OR request queue > 100 OR P99 > 500ms<br>
+        &bull; <strong>Scale up consumers</strong> when: Kafka consumer lag > 1000 messages for > 5 minutes<br>
+        &bull; <strong>Scale down</strong> when: CPU < 30% AND lag = 0 for > 15 minutes
+    </div>
+</div>
+
+<!-- ════════════ 5. DESIGN PATTERNS ════════════ -->
+<div class="section" id="patterns">
+    <div class="section-title"><span class="section-num">5</span> Design Patterns Used</div>
+
+    <table class="tbl">
+        <thead><tr><th>Pattern</th><th>Where</th><th>Why</th></tr></thead>
+        <tbody>
+            <tr><td>Publish-Subscribe</td><td>Kafka topics</td><td>Decouple producers from consumers; multiple consumer groups can read same topic</td></tr>
+            <tr><td>Event-Driven Architecture</td><td>Entire system</td><td>Services communicate via events, not direct calls; async, resilient, scalable</td></tr>
+            <tr><td>Competing Consumers</td><td>Consumer groups</td><td>30 consumers share work from 30 partitions; linear throughput scaling</td></tr>
+            <tr><td>Dead Letter Queue</td><td>Kafka DLT topics</td><td>Permanently failed messages don't block healthy ones; manual intervention queue</td></tr>
+            <tr><td>CQRS</td><td>PostgreSQL replicas</td><td>Separate read and write paths; scale reads independently with replicas</td></tr>
+            <tr><td>Cache-Aside</td><td>Redis</td><td>Check cache before DB; populate cache on miss; reduce DB load by 80%</td></tr>
+            <tr><td>Circuit Breaker</td><td>External API calls</td><td>Resilience4j: If email provider fails, stop sending; retry after cooldown</td></tr>
+            <tr><td>Distributed Lock</td><td>ShedLock</td><td>Ensure scheduled tasks run on exactly 1 instance, not all N instances</td></tr>
+            <tr><td>Saga Pattern</td><td>Notification lifecycle</td><td>PENDING → PROCESSING → SENT/FAILED → RETRY; each step is an event</td></tr>
+            <tr><td>Idempotent Consumer</td><td>Kafka consumers</td><td>Check notification status before processing; safe to re-deliver messages</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- ════════════ 6. CURRENT vs TARGET ════════════ -->
+<div class="section" id="comparison">
+    <div class="section-title"><span class="section-num">6</span> Current State vs Production Target</div>
+
+    <table class="tbl">
+        <thead><tr><th>Component</th><th>Current (Dev)</th><th>Target (1M Users)</th><th>Status</th></tr></thead>
+        <tbody>
+            <tr><td>Database</td><td>H2 (in-memory)</td><td>PostgreSQL + Read Replicas</td><td style="color:#fbbf24;">TODO #4</td></tr>
+            <tr><td>Kafka</td><td>1 broker, 3 partitions</td><td>3 brokers, 30 partitions, RF=3</td><td style="color:#4ade80;">Config change</td></tr>
+            <tr><td>App Instances</td><td>1 JVM</td><td>5-10 auto-scaled</td><td style="color:#fbbf24;">TODO #5</td></tr>
+            <tr><td>Consumers</td><td>3 threads (1 JVM)</td><td>30 consumers (6 JVMs &times; 5 threads)</td><td style="color:#4ade80;">Config change</td></tr>
+            <tr><td>Containerization</td><td>None</td><td>Docker + Kubernetes/ECS</td><td style="color:#fbbf24;">TODO #5</td></tr>
+            <tr><td>Distributed Scheduling</td><td>None (single instance safe)</td><td>ShedLock</td><td style="color:#fbbf24;">TODO #6</td></tr>
+            <tr><td>Rate Limiting</td><td>None</td><td>Per-channel rate limiter</td><td style="color:#fbbf24;">TODO #7</td></tr>
+            <tr><td>Caching</td><td>None</td><td>Redis Cluster</td><td style="color:#f87171;">Not started</td></tr>
+            <tr><td>CDN</td><td>None</td><td>CloudFlare</td><td style="color:#64748b;">Infra setup</td></tr>
+            <tr><td>API Gateway</td><td>None (direct to app)</td><td>Kong / AWS API Gateway</td><td style="color:#64748b;">Infra setup</td></tr>
+            <tr><td>Load Balancer</td><td>None</td><td>Nginx / AWS ALB</td><td style="color:#64748b;">Infra setup</td></tr>
+            <tr><td>Monitoring</td><td>Console logs</td><td>Prometheus + Grafana + ELK + Jaeger</td><td style="color:#64748b;">Infra setup</td></tr>
+            <tr><td>Async Processing</td><td>Spring @Async + Kafka</td><td>Same (already production-ready)</td><td style="color:#4ade80;">Done</td></tr>
+            <tr><td>Retry Logic</td><td>Async scheduled retry + Kafka DLT</td><td>Same (already production-ready)</td><td style="color:#4ade80;">Done</td></tr>
+        </tbody>
+    </table>
+
+    <div class="alert alert-green">
+        <strong>Key takeaway:</strong> The core application code (Kafka integration, async processing, retry logic)
+        is already <strong>production-ready</strong>. Scaling to 1M users is primarily an <strong>infrastructure challenge</strong>:
+        replace H2 with PostgreSQL, containerize, add a load balancer, and increase Kafka partition count.
+        Minimal code changes required.
+    </div>
+</div>
+
+<!-- ════════════ 7. REQUEST FLOW AT SCALE ════════════ -->
+<div class="section">
+    <div class="section-title"><span class="section-num">7</span> Request Flow at Scale — End to End</div>
+
+    <div class="diagram">
+<span class="diagram-title" style="color:#22d3ee;">COMPLETE REQUEST FLOW — 1M USER ARCHITECTURE</span>
+
+  User (Mobile App)
+    │
+    │ HTTPS POST /api/notifications/send
+    ▼
+  CloudFlare CDN ─── SSL terminated, DDoS filtered
+    │
+    ▼
+  API Gateway (Kong) ─── JWT validated, rate limit checked (1000/min)
+    │
+    ▼
+  Load Balancer (ALB) ─── health check OK, routes to least-busy instance
+    │
+    ├──────────────▶ Spring Boot #3 (selected by round-robin)
+    │                    │
+    │                    ├── 1. Validate request
+    │                    ├── 2. Check Redis cache for user (hit → skip DB)
+    │                    ├── 3. Save notification to PostgreSQL Primary (PENDING)
+    │                    ├── 4. Publish event to Kafka (notification-send, key="42")
+    │                    ├── 5. Return HTTP 200 {status: PENDING} ← <span style="color:#4ade80;">~15ms total</span>
+    │                    │
+    │              Kafka Broker 2 (partition 14, determined by hash("42") % 30)
+    │                    │
+    │                    ├── Stores message on SSD
+    │                    ├── Replicates to Broker 1 and Broker 3
+    │                    ├── Sends ACK to producer
+    │                    │
+    │              Consumer Instance #3, Thread C-4 (assigned to partition 14)
+    │                    │
+    │                    ├── 6. Polls broker, receives message
+    │                    ├── 7. Check Redis for dedup (not duplicate → proceed)
+    │                    ├── 8. Fetch notification from PG Read Replica (with User JOIN FETCH)
+    │                    ├── 9. Resolve channel → EmailChannelHandler
+    │                    ├── 10. Call Amazon SES API → email queued
+    │                    ├── 11. Update status to SENT in PostgreSQL Primary
+    │                    ├── 12. Set Redis dedup key (TTL 24h)
+    │                    ├── 13. Commit Kafka offset
+    │                    │
+    │                    └── <span style="color:#4ade80;">Total async processing: ~200ms</span>
+    │
+    └── Meanwhile, user already has their HTTP 200 response ✓
+
+  <span style="color:#fbbf24;">If step 10 fails (SES down):</span>
+    → DefaultErrorHandler retries 3 times (1s apart)
+    → If still failing → DeadLetterPublishingRecoverer → notification-send.DLT
+    → Grafana alert fires (DLT messages > 0)
+    → Ops team investigates, replays messages when SES recovers</div>
+</div>
+
+<div class="footer">
+    Notification System &bull; High-Level Design for 1M Users &bull;
+    Branch: release-kafka-integration &bull; March 2026
+</div>
+
+</div>
+</body>
+</html>
