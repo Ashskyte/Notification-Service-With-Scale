@@ -1,13 +1,14 @@
 # Notification System
 
-A scalable, extensible Notification System built with **Java 17** and **Spring Boot 3.2**. Supports multi-channel delivery (Email, SMS, Push), scheduling, prioritization, batching, and retry with exponential backoff.
+A scalable, extensible Notification System built with **Java 17** and **Spring Boot 3.2**. Supports multi-channel delivery (Email, SMS, Push), scheduling, prioritization, batching, retry with exponential backoff, **Redis-backed caching**, and **content-based deduplication**.
 
 ## Architecture
 
 ```
 ├── controller/          # REST API endpoints
-├── service/             # Business logic (notification, user, scheduler, retry)
+├── service/             # Business logic (notification, user, scheduler, retry, deduplication, rate limiting)
 ├── channel/             # Strategy pattern: pluggable channel handlers
+├── config/              # Redis, Kafka, Async configuration
 ├── model/               # JPA entities and enums
 ├── dto/                 # Request/Response DTOs
 ├── repository/          # Spring Data JPA repositories
@@ -29,6 +30,9 @@ A scalable, extensible Notification System built with **Java 17** and **Spring B
 | **Priority** | HIGH, MEDIUM, LOW with priority-based processing |
 | **Batching** | Bulk notification API with configurable batch size |
 | **Retry** | Exponential backoff (configurable attempts, delay, multiplier) |
+| **Caching** | Redis-backed caching for users and notifications with per-cache TTLs |
+| **Deduplication** | Two-layer: content-based (API) + Kafka event dedup via Redis SET NX |
+| **Rate Limiting** | Per-user, per-channel distributed rate limiting via Redis |
 | **Extensibility** | Add new channels by implementing one interface |
 
 ## Tech Stack
@@ -37,10 +41,12 @@ A scalable, extensible Notification System built with **Java 17** and **Spring B
 - Spring Boot 3.2.4
 - Spring Data JPA + H2 In-Memory Database
 - Apache Kafka 3.7.0
+- **Redis 7 (Alpine)** — Caching, Deduplication, Rate Limiting
 - Spring Boot Actuator
 - Docker / Podman (Containerization)
 - Lombok
 - JUnit 5 + Mockito + AssertJ
+
 
 ## Getting Started
 
@@ -53,7 +59,7 @@ A scalable, extensible Notification System built with **Java 17** and **Spring B
 
 ### Option 1: Docker Compose (Recommended — One Command)
 
-This starts **Kafka + Kafka UI + Notification Service** together with a single command.
+This starts **Kafka + Kafka UI + Redis + Notification Service** together with a single command.
 
 ```bash
 # Build and start everything
@@ -67,6 +73,7 @@ docker-compose up --build -d
 |---|---|
 | Notification Service | `http://localhost:8081` |
 | Kafka UI | `http://localhost:8090` |
+| Redis | `localhost:6379` |
 | Health Check | `http://localhost:8081/actuator/health` |
 
 **Useful commands:**
@@ -76,6 +83,10 @@ docker-compose logs -f notification-service
 
 # Check container status
 docker-compose ps
+
+# Inspect Redis keys (connect to Redis CLI inside container)
+docker exec -it redis redis-cli keys "notif:*"
+docker exec -it redis redis-cli keys "dedup:*"
 
 # Stop everything
 docker-compose down
@@ -90,18 +101,21 @@ docker-compose down -v
 
 ### Option 2: Manual Setup with Podman + Maven
 
-If you prefer running the Spring Boot app locally (outside a container) with only Kafka in Podman:
+If you prefer running the Spring Boot app locally (outside a container) with only Kafka and Redis in Podman:
 
-**Step 1 — Start Kafka & Kafka UI (Podman)**
+**Step 1 — Start Kafka, Kafka UI & Redis (Podman)**
 ```powershell
 # Create a pod with port mappings
-podman pod create --name kafka-pod -p 9092:9092 -p 8090:8080
+podman pod create --name kafka-pod -p 9092:9092 -p 8090:8080 -p 6379:6379
 
 # Start Kafka broker inside the pod
 podman run -d --pod kafka-pod --name kafka apache/kafka:3.7.0
 
 # Start Kafka UI inside the pod (Windows PowerShell — single line)
 podman run -d --pod kafka-pod --name kafka-ui -e DYNAMIC_CONFIG_ENABLED=true -e KAFKA_CLUSTERS_0_NAME=local -e KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=localhost:9092 provectuslabs/kafka-ui:latest
+
+# Start Redis inside the pod
+podman run -d --pod kafka-pod --name redis redis:7-alpine redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
 ```
 
 **Step 2 — Run the Application**
@@ -114,10 +128,11 @@ mvn spring-boot:run
 |---|---|
 | Notification Service | `http://localhost:8080` |
 | Kafka UI | `http://localhost:8090` |
+| Redis | `localhost:6379` |
 
 **Step 3 — Cleanup**
 ```powershell
-# Stop the entire pod (Kafka + Kafka UI)
+# Stop the entire pod (Kafka + Kafka UI + Redis)
 podman pod stop kafka-pod
 
 # Remove the pod and all its containers
@@ -174,6 +189,8 @@ POST /api/notifications/send
   "priority": "HIGH"
 }
 ```
+
+> Sending the **exact same payload again within 60 seconds** returns `HTTP 409 Conflict` — duplicate rejected.
 
 ### Example: Schedule Notification
 ```json
@@ -239,6 +256,55 @@ POST /api/notifications/send/bulk
 | channel | ENUM | Preferred channel |
 | enabled | BOOLEAN | Whether preference is active |
 
+## Redis Integration
+
+Redis serves three distinct roles in this system:
+
+### 1. Distributed Caching (`spring-cache` + `RedisCacheManager`)
+Reduces database load by caching frequently accessed data with automatic TTL-based expiry.
+
+| Cache Name | TTL | Cached Data |
+|---|---|---|
+| `users` | 10 minutes | Individual user lookups by ID |
+| `notifications` | 2 minutes | Individual notification lookups by ID |
+| `user-notifications` | 60 seconds | Paginated notification lists per user |
+
+- Serialization: `GenericJackson2JsonRedisSerializer` with Java 8 time support
+- Key prefix: `notif:` (all keys namespaced to avoid collisions)
+- Memory policy: `allkeys-lru` with 256MB cap (configured in Docker)
+
+### 2. Content-Based Deduplication (Two Layers)
+
+| Layer | Key Pattern | TTL | Purpose |
+|---|---|---|---|
+| **API-level** | `dedup:content:{SHA-256(userId+channel+title+message)}` | 60s (configurable) | Rejects identical API requests within the window → `HTTP 409 Conflict` |
+| **Kafka-level** | `dedup:send:{notificationId}` / `dedup:retry:{notificationId}` | 300s (configurable) | Skips Kafka at-least-once redeliveries |
+
+Uses Redis `SET NX` (set-if-not-exists) — atomic and TTL-controlled, no manual cleanup needed.
+
+**Example — sending the same notification twice:**
+```
+POST /api/notifications/send  →  HTTP 200 OK       (first request)
+POST /api/notifications/send  →  HTTP 409 Conflict (duplicate within 60s window)
+```
+
+### 3. Rate Limiting
+Distributed per-user, per-channel rate limiting using Redis sliding counters — prevents a single user from flooding a channel and respects downstream provider limits.
+
+### Configuration
+
+```properties
+# Redis connection
+spring.data.redis.host=localhost
+spring.data.redis.port=6379
+spring.data.redis.lettuce.pool.max-active=16
+spring.data.redis.lettuce.pool.max-idle=8
+
+# Deduplication TTLs
+notification.dedup.ttl-seconds=300          # Kafka event dedup window
+notification.dedup.content-ttl-seconds=60  # API content dedup window
+```
+
 ## Running Tests
 ```bash
 mvn test
@@ -272,7 +338,7 @@ The current system handles ~50-100 msg/sec with a single JVM, H2 in-memory DB, a
 - Swap H2 in-memory database with **PostgreSQL** (or MySQL).
 - Use **connection pooling** (HikariCP - already included in Spring Boot).
 - Add database **indexes** on `user_id`, `status`, `scheduled_at`, and `channel` columns for fast queries.
-- Set up **read replicas** to offload read-heavy queries (e.g., notification history lookups).
+- Set out **read replicas** to offload read-heavy queries (e.g., notification history lookups).
 - Use **Flyway** or **Liquibase** for database schema migration management.
 ### 2. Scale Kafka for High Throughput
 - Move from **1 Kafka broker to 3-5 broker cluster** for fault tolerance and throughput.
@@ -285,14 +351,15 @@ The current system handles ~50-100 msg/sec with a single JVM, H2 in-memory DB, a
 - Each instance runs **5 Kafka consumer threads** = 50 total consumers across the cluster.
 - Use **Kafka consumer groups** so partitions are auto-distributed across instances.
 - Make the application fully **stateless** (no in-memory state) so any instance can handle any request.
-### 4. Add Redis for Caching and Deduplication
-- Cache **user preferences** and **user lookups** in Redis to reduce DB load.
-- Implement **deduplication** using Redis `SET NX` with TTL - prevent the same notification from being sent twice.
-- Use Redis as a **distributed rate limiter** (sliding window / token bucket per channel).
+### 4. ✅ Redis for Caching and Deduplication — **Implemented**
+- ✅ **User and notification caching** via `RedisCacheManager` with per-cache TTLs (users: 10min, notifications: 2min)
+- ✅ **Two-layer deduplication** — content-based (API, 60s TTL) + Kafka event dedup (300s TTL) using Redis `SET NX`
+- ✅ **Distributed rate limiting** per user/channel via Redis sliding counters
+- ✅ Redis 7 (Alpine) containerized in Docker Compose with `allkeys-lru` eviction and 256MB memory cap
 ### 5. Rate Limiting per Channel
 - Email providers (SES, SendGrid) and SMS gateways (Twilio) enforce **API rate limits**.
-- Implement a **rate limiter** (e.g., Resilience4j RateLimiter or Redis-based token bucket) per channel.
-- Add a **back-pressure mechanism** - if rate limit is hit, slow down Kafka consumer consumption.
+- Extend the existing Redis rate limiter with **per-provider limits** and a token bucket algorithm.
+- Add a **back-pressure mechanism** — if rate limit is hit, slow down Kafka consumer consumption.
 ### 6. Replace Simulated Channels with Real Providers
 | Channel | Current | Production |
 |---------|---------|------------|
@@ -320,7 +387,7 @@ The current system handles ~50-100 msg/sec with a single JVM, H2 in-memory DB, a
 - Use **TLS/SSL** for Kafka broker communication and external API calls.
 - Implement **API rate limiting** on REST endpoints to prevent abuse.
 ### 11. Containerization and Orchestration
-- Current: Single `docker-compose` setup.
+- Current: Single `docker-compose` setup (Kafka + Redis + Notification Service).
 - Production: Deploy on **Kubernetes (K8s)** with:
   - **Horizontal Pod Autoscaler (HPA)** - auto-scale based on CPU/Kafka lag.
   - **Liveness and Readiness probes** via Spring Actuator health endpoints.
@@ -338,9 +405,10 @@ The current system handles ~50-100 msg/sec with a single JVM, H2 in-memory DB, a
 | Kafka | 1 broker, 3 partitions | 3-5 brokers, 30-50 partitions/topic |
 | Consumers | 3 threads (1 JVM) | 10 JVMs x 5 threads = 50 consumers |
 | Database | H2 in-memory | PostgreSQL cluster (write + read replicas) |
-| Caching | None | Redis (user lookups, dedup, rate limiting) |
+| Caching | ✅ Redis (`users` 10min, `notifications` 2min, `user-notifications` 60s) | Redis Cluster (HA, multi-shard) |
+| Deduplication | ✅ Redis SET NX (content 60s + Kafka event 300s) | Same, scaled with Redis Cluster |
+| Rate Limiting | ✅ Redis per-user/channel sliding counter | Per-provider limits + back-pressure |
 | App Instances | 1 Spring Boot | 5-10 instances behind load balancer |
-| Rate Limiting | None | Per-channel rate limiter (Redis / Resilience4j) |
 | Email/SMS | Simulated | SES / SendGrid / Twilio with connection pool |
 | Monitoring | Actuator only | Prometheus + Grafana + Zipkin + ELK |
-| Deployment | Docker Compose | Kubernetes with HPA + Helm |
+| Deployment | Docker Compose (Kafka + Redis + App) | Kubernetes with HPA + Helm |
