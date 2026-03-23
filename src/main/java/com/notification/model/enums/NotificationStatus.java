@@ -6,5 +6,6 @@ public enum NotificationStatus {
     PROCESSING,
     SENT,
     FAILED,
-    RETRY
+    RETRY,
+    RATE_LIMITED
 }

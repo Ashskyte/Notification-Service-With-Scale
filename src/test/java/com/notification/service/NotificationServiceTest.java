@@ -191,7 +191,7 @@ class NotificationServiceTest {
         LocalDateTime now = LocalDateTime.of(2025, 3, 18, 10, 0);
 
         NotificationProcessingService realProcessingService = new NotificationProcessingService(
-                notificationRepository, null, null);
+                notificationRepository, null, null, null, null);
 
         assertThat(realProcessingService.calculateNextRecurrence(now, RecurrenceType.DAILY))
                 .isEqualTo(now.plusDays(1));
