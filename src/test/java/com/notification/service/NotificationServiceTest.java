@@ -22,6 +22,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -36,6 +37,9 @@ class NotificationServiceTest {
     @Mock
     private NotificationKafkaProducer kafkaProducer;
 
+    @Mock
+    private DeduplicationService deduplicationService;
+
     @InjectMocks
     private NotificationService notificationService;
 
@@ -43,6 +47,11 @@ class NotificationServiceTest {
 
     @BeforeEach
     void setUp() {
+        // Lenient: not a duplicate by default — lets all sendNotification tests pass through
+        // the dedup check without triggering UnnecessaryStubbingException in tests that
+        // don't call sendNotification (e.g. getNotificationById, calculateNextRecurrence).
+        lenient().when(deduplicationService.isContentDuplicate(anyString())).thenReturn(false);
+
         testUser = User.builder()
                 .id(1L)
                 .username("testuser")
@@ -191,7 +200,7 @@ class NotificationServiceTest {
         LocalDateTime now = LocalDateTime.of(2025, 3, 18, 10, 0);
 
         NotificationProcessingService realProcessingService = new NotificationProcessingService(
-                notificationRepository, null, null);
+                notificationRepository, null, null, null, null);
 
         assertThat(realProcessingService.calculateNextRecurrence(now, RecurrenceType.DAILY))
                 .isEqualTo(now.plusDays(1));

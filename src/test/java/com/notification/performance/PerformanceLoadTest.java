@@ -40,14 +40,16 @@ public class PerformanceLoadTest {
 
     @BeforeEach
     void setUp() {
+        userIds = new ArrayList<>();
         // Seed test users
         for (int i = 1; i <= NUM_USERS; i++) {
             try {
+                long unique = System.nanoTime();
                 var request = UserRegistrationRequest.builder()
-                        .username("perfuser_" + i + "_" + System.nanoTime())
-                        .email("perfuser" + i + "_" + System.nanoTime() + "@test.com")
-                        .phoneNumber("+100000000" + i)
-                        .deviceToken("device-token-perf-" + i)
+                        .username("perfuser_" + i + "_" + unique)
+                        .email("perfuser" + i + "_" + unique + "@test.com")
+                        .phoneNumber("+1" + unique)
+                        .deviceToken("device-token-perf-" + i + "-" + unique)
                         .preferredChannels(Arrays.asList(NotificationChannel.EMAIL))
                         .build();
                 var user = userService.registerUser(request);
@@ -86,8 +88,8 @@ public class PerformanceLoadTest {
 
                     SendNotificationRequest request = SendNotificationRequest.builder()
                             .userId(userId)
-                            .title("Load Test #" + index)
-                            .message("Performance test notification " + index)
+                            .title("Load Test #" + index + "-" + System.nanoTime())
+                            .message("Performance test notification " + index + "-" + System.nanoTime())
                             .channel(NotificationChannel.EMAIL)
                             .priority(NotificationPriority.MEDIUM)
                             .build();
